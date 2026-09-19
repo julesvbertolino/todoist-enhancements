@@ -198,6 +198,18 @@ export const toDisplayPriority = (p: TodoistPriority): DisplayPriority =>
 export const toTodoistPriority = (p: DisplayPriority): TodoistPriority =>
   (5 - p) as TodoistPriority;
 
+/**
+ * The prefix that makes a task uncompletable in Todoist.
+ *
+ * https://www.todoist.com/help/todoist/features/create-an-uncompletable-task-in-todoist
+ * The main app and website drop the checkbox entirely for a task typed this
+ * way, since there is nothing a click on it could do.
+ */
+export const UNCOMPLETABLE_PREFIX = '* ';
+
+export const isUncompletable = (item: Pick<Item, 'content'>): boolean =>
+  item.content.startsWith(UNCOMPLETABLE_PREFIX);
+
 /** The technical labels the product reads. These are never translated. */
 export const SYSTEM_LABELS = {
   quick: 'quick',

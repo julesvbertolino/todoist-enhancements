@@ -21,7 +21,7 @@ import { Select } from '../Select';
 import { PlacementField } from '../PlacementField';
 import { DateField } from '../DateField';
 import { markerStyle } from '@/domain/colors';
-import { toDisplayPriority, toTodoistPriority, type DisplayPriority, type Item } from '@/domain/types';
+import { isUncompletable, toDisplayPriority, toTodoistPriority, type DisplayPriority, type Item } from '@/domain/types';
 import { matchesSearch } from '@/domain/search';
 
 /**
@@ -547,22 +547,26 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
       <div className="detail-body" ref={panelRef}>
         <div className="detail-main">
           <div className="detail-headline">
-            <span
-              className={`check p${priority}`}
-              role="checkbox"
-              aria-checked={item.checked}
-              aria-label={t('task.complete')}
-              tabIndex={0}
-              onClick={() => void toggleTask(item.id)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  void toggleTask(item.id);
-                }
-              }}
-            >
-              <Icon name="check" />
-            </span>
+            {isUncompletable(item) ? (
+              <span className={`check p${priority} nocheck`} aria-hidden="true" />
+            ) : (
+              <span
+                className={`check p${priority}`}
+                role="checkbox"
+                aria-checked={item.checked}
+                aria-label={t('task.complete')}
+                tabIndex={0}
+                onClick={() => void toggleTask(item.id)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    void toggleTask(item.id);
+                  }
+                }}
+              >
+                <Icon name="check" />
+              </span>
+            )}
 
             <div className="detail-content">
               {/* The same field the composer uses, so a title edited here
@@ -670,16 +674,23 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
 
             {subtasks.map((child) => (
               <SubtaskRow id={child.id} key={child.id}>
-                <span
-                  className={`check p${toDisplayPriority(child.priority)}`}
-                  role="checkbox"
-                  aria-checked={child.checked}
-                  aria-label={t('task.complete')}
-                  tabIndex={0}
-                  onClick={() => void toggleTask(child.id)}
-                >
-                  <Icon name="check" />
-                </span>
+                {isUncompletable(child) ? (
+                  <span
+                    className={`check p${toDisplayPriority(child.priority)} nocheck`}
+                    aria-hidden="true"
+                  />
+                ) : (
+                  <span
+                    className={`check p${toDisplayPriority(child.priority)}`}
+                    role="checkbox"
+                    aria-checked={child.checked}
+                    aria-label={t('task.complete')}
+                    tabIndex={0}
+                    onClick={() => void toggleTask(child.id)}
+                  >
+                    <Icon name="check" />
+                  </span>
+                )}
                 <button className="subtasktitle" onClick={() => onOpen(child.id)}>
                   <span style={child.checked ? { textDecoration: 'line-through', color: 'var(--faint)' } : undefined}>
                     {child.content}

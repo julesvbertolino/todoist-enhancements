@@ -739,6 +739,11 @@ ul{margin:0;padding:0;list-style:none}
 .check.p2{border-color:var(--p2);background:rgba(181,101,0,.07)}
 .check.p4{border-color:var(--check-quiet);background:transparent}
 .task.done .check,.tcard.done .check{color:#fff;border-color:var(--ok);background:var(--ok)}
+/* A "* " task: Todoist itself gives it no checkbox, since a click on one
+   would have nothing to do. The slot stays, empty, so the row still lines
+   up with every completable one around it. */
+.check.nocheck{border-color:transparent;background:transparent;cursor:default}
+.check.nocheck:hover{background:transparent}
 
 .tmain{display:block;min-width:0}
 .ttitle{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;

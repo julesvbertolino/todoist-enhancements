@@ -7,7 +7,7 @@ import { useT } from '@/hooks/useT';
 import { usePhoneBehaviour } from '@/hooks/useTouchLayout';
 import { useRowGesture } from '@/hooks/useRowGesture';
 import { useStore } from '@/store/store';
-import { toDisplayPriority, type Item } from '@/domain/types';
+import { isUncompletable, toDisplayPriority, type Item } from '@/domain/types';
 import { effectiveEstimate, formatDuration } from '@/domain/estimates';
 import { deadlineDate, dueDate, formatRelativeDay, formatTime, hasTime, isOverdue, isToday, overdueBy } from '@/domain/dates';
 import { markerStyle } from '@/domain/colors';
@@ -92,6 +92,7 @@ export function TaskRow({
     timer.current = setTimeout(() => { void toggleTask(item.id); }, COMPLETION_LINGER_MS);
   };
 
+  const uncompletable = isUncompletable(item);
   const children = childrenOf(item.id);
   const openChildren = children.filter((c) => !c.checked);
   const doneChildren = children.length - openChildren.length;
@@ -169,26 +170,33 @@ export function TaskRow({
           </span>
         )}
 
-        <span
-          className={`check p${priority}`}
-          role="checkbox"
-          aria-checked={item.checked || settling}
-          aria-label={t('task.complete')}
-          tabIndex={0}
-          onClick={(e) => {
-            e.stopPropagation();
-            complete();
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
+        {uncompletable ? (
+          /* Todoist gives a "* " task no checkbox at all, so this one does
+             not click, focus, or announce itself as one — it only holds the
+             row's alignment. */
+          <span className={`check p${priority} nocheck`} aria-hidden="true" />
+        ) : (
+          <span
+            className={`check p${priority}`}
+            role="checkbox"
+            aria-checked={item.checked || settling}
+            aria-label={t('task.complete')}
+            tabIndex={0}
+            onClick={(e) => {
               e.stopPropagation();
               complete();
-            }
-          }}
-        >
-          <Icon name="check" />
-        </span>
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                e.stopPropagation();
+                complete();
+              }
+            }}
+          >
+            <Icon name="check" />
+          </span>
+        )}
 
         <span className="tmain">
           <span className="ttitle">{item.content}</span>

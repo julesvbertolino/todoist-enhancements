@@ -21,7 +21,7 @@ import {
 } from '@/components/charts';
 import { formatRange, rangeFor } from '@/domain/periods';
 import { addDays, format, startOfDay } from 'date-fns';
-import { toDisplayPriority, type CompletedItem, type Item, type Project } from '@/domain/types';
+import { isUncompletable, toDisplayPriority, type CompletedItem, type Item, type Project } from '@/domain/types';
 import type { DropTarget } from '@/domain/dnd';
 import {
   buildReview,
@@ -419,20 +419,27 @@ export function ReviewView({ onOpen }: ReviewViewProps) {
          as it does in a list. */
       <div className={`reviewrow${settling ? ' done settling' : ''}`}>
         {/* Sometimes the answer is that it is already done. */}
-        <span
-          className={`check p${toDisplayPriority(item.priority)}`}
-          role="checkbox"
-          aria-checked={item.checked || settling}
-          aria-label={t('task.complete')}
-          title={t('task.complete')}
-          tabIndex={0}
-          onClick={complete}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); complete(); }
-          }}
-        >
-          <Icon name="check" />
-        </span>
+        {isUncompletable(item) ? (
+          <span
+            className={`check p${toDisplayPriority(item.priority)} nocheck`}
+            aria-hidden="true"
+          />
+        ) : (
+          <span
+            className={`check p${toDisplayPriority(item.priority)}`}
+            role="checkbox"
+            aria-checked={item.checked || settling}
+            aria-label={t('task.complete')}
+            title={t('task.complete')}
+            tabIndex={0}
+            onClick={complete}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); complete(); }
+            }}
+          >
+            <Icon name="check" />
+          </span>
+        )}
 
         <button className="reviewname" onClick={() => onOpen(item.id)}>
           <span className="ttitle">{item.content}</span>
