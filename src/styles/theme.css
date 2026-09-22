@@ -334,6 +334,20 @@
 /* A thin gauge showing how far the current karma rank has been travelled. */
 .karmabar{display:block;height:3px;border-radius:var(--r-full);background:var(--border);overflow:hidden}
 .karmabar i{display:block;height:100%;border-radius:inherit;background:var(--accent)}
+.karma-detail{display:grid;gap:var(--s3);padding:var(--s5) 0 var(--s3)}
+.karma-detail p{margin:0;color:var(--muted);font-size:var(--fs-12)}
+.karma-scale{display:grid;gap:6px}
+.karma-progress{position:relative;display:flex;align-items:center;justify-content:space-between;min-height:38px;padding:0 var(--s3);overflow:hidden;border-radius:var(--r-md);background:var(--subtle)}
+.karma-progress i{position:absolute;inset:0 auto 0 0;background:var(--accent-soft);border-right:2px solid var(--accent);z-index:0}
+.karma-progress small,.karma-progress strong{position:relative;z-index:1}.karma-progress small{color:var(--muted);font-size:var(--fs-11)}.karma-progress strong{font-size:var(--fs-12)}
+.coffee-callout{position:relative;display:grid;grid-template-columns:auto 1fr;align-items:center;gap:var(--s3);padding:var(--s4);margin:calc(var(--s6) * -1 + var(--s3)) 0 var(--s6);border:0;border-radius:var(--r-lg);background:#fff8d6;color:#342e10}
+.coffee-callout-mark{width:42px;height:42px;display:grid;place-items:center;border-radius:50%;background:rgba(255,255,255,.55)}
+.coffee-callout-avatar{width:53px;height:53px;object-fit:cover;border-radius:50%;box-shadow:0 0 0 3px rgba(255,255,255,.72)}
+.coffee-callout > div{display:grid;justify-items:start;gap:4px;padding-right:22px}.coffee-callout > div span{font-size:var(--fs-12);opacity:.78}.coffee-callout .btn{margin-top:8px;border:0;background:#241f00;color:#fff}
+.coffee-callout .btn,.coffee-callout .btn:hover{text-decoration:none}
+.coffee-callout-close{position:absolute;top:8px;right:8px;padding:5px;border-radius:50%;opacity:.78;color:#342e10}.coffee-callout-close:hover{opacity:1;background:rgba(255,255,255,.55)}
+.setsubhead{margin:var(--s6) 0 var(--s2);padding-top:var(--s5);border-top:1px solid var(--border);font-size:var(--fs-14);font-weight:700}
+@media(max-width:650px){.coffee-callout{grid-template-columns:auto 1fr}.coffee-callout .btn{grid-column:1/-1}}
 
 .side-head{display:flex;align-items:center;justify-content:space-between;gap:var(--s2)}
 .side-head > span{
@@ -709,6 +723,7 @@
 .page > .reviewfoot,
 .page > .reviewdone,
 .page > .empty{
+  width:100%;
   max-width:820px;
   margin-left:auto;
   margin-right:auto;
@@ -1259,8 +1274,10 @@
 .phead-text{flex:1 1 auto;min-width:0}
 /* A narrow column wraps the controls under the title instead of pushing them
    off the page. */
-.phead{flex-wrap:wrap}
-.pactions{flex-wrap:wrap;max-width:100%}
+@media (max-width:700px){
+  .phead{flex-wrap:wrap}
+  .pactions{flex-wrap:wrap;max-width:100%}
+}
 .phead .psub{max-width:none}
 /* A project description is editable, so it needs the full measure to type in. */
 .phead .psub .descwrap,
@@ -2243,9 +2260,9 @@
 .eisenhower-page .pactions{
   flex:0 0 auto;min-width:max-content;margin-left:auto;justify-content:flex-end;
 }
-.eisenhower-list,.eisenhower-grid{margin-top:var(--s5)}
-.eisenhower-list{display:grid;gap:var(--s5)}
-.eisenhower-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--s4)}
+.eisenhower-list,.eisenhower-grid{margin:var(--s5) auto 0}
+.eisenhower-list{display:grid;gap:var(--s5);max-width:820px}
+.eisenhower-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--s4);max-width:1160px}
 .quadrant{
   min-width:0;padding:var(--s4);border:1px solid var(--border);
   border-radius:var(--r-lg);background:var(--surface);box-shadow:0 1px 2px var(--sh-hair);
@@ -2350,10 +2367,47 @@
 .wt-body .denschoice{margin-top:10px}
 
 .wt-foot{display:flex;align-items:center;justify-content:flex-end;gap:var(--s2)}
+.wt-foot > span{margin-right:auto;color:var(--muted);font-size:var(--fs-12)}
+.wt-features{display:grid;grid-template-columns:1fr 1fr;gap:var(--s2)}
+.wt-features > h3{grid-column:1/-1}
+.wt-feature{display:flex;gap:var(--s3);padding:var(--s3);border:1px solid var(--border);border-radius:var(--r-md)}
+.wt-feature > .ic{flex:0 0 auto;color:var(--accent)}
+.wt-feature div{display:grid;gap:2px}.wt-feature strong{font-size:var(--fs-13)}.wt-feature span{color:var(--muted);font-size:var(--fs-12);line-height:1.45}
+.wt-setup{display:grid;gap:var(--s2)}.wt-setup > label{display:flex;align-items:flex-start;gap:var(--s3);padding:var(--s3);border:1px solid var(--border);border-radius:var(--r-md)}
+.wt-setup input{margin-top:3px;accent-color:var(--accent)}.wt-setup label span{display:grid;gap:2px}.wt-setup small{color:var(--muted);line-height:1.45}
+.wt-complete{text-align:center;display:grid;justify-items:center;gap:var(--s3);padding:var(--s5)}.wt-complete p{color:var(--muted);max-width:48ch}
+.wt-appearance-row{display:grid;grid-template-columns:1fr 1fr;gap:var(--s4);align-items:start}
+.wt-appearance-row > div{min-width:0}.wt-appearance-row .denschoice,.wt-appearance-row .themechoice{margin-top:10px}
+.wt-week-layouts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--s2)}
+.wt-week-layouts button{display:grid;gap:8px;padding:var(--s3);text-align:left;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface)}
+.wt-week-layouts button:hover,.wt-week-layouts button.selected{border-color:var(--accent);background:var(--accent-soft)}
+.wt-week-layouts strong{font-size:var(--fs-12);line-height:1.35}
+.wt-week-layouts small{color:var(--muted);font-size:var(--fs-11);line-height:1.4}
+.wt-head:has(.wt-close){min-height:24px;padding:0;border:0}.wt-close{position:absolute;top:16px;right:16px;z-index:2;padding:6px;border-radius:50%;color:var(--muted)}.wt-close:hover{background:var(--hover);color:var(--text)}
+.wt-support{min-height:300px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:var(--s3);padding:var(--s6)}
+.wt-support > strong{font-size:var(--fs-20);letter-spacing:-.02em}
+.wt-support p{max-width:420px;margin:0;color:var(--muted)}
+.wt-support-cup{width:64px;height:64px;display:grid;place-items:center;border-radius:50%;background:#fff8d6;color:#584c0b;border:1px solid #eadb85}
+.wt-support .coffee,.wt-support .coffee:hover{text-decoration:none;background:#241f00;color:#fff;border:0;margin-top:var(--s2)}
+
+/* Settings is deliberately one long page. Keep its own scroll container and
+   enough room after the final section on every viewport. */
+.screen.active:has(.settings){overflow-y:auto;overscroll-behavior:contain}
+.settings .setbody{padding-bottom:max(120px,12vh)}
+.wt-week-visual{display:grid;grid-template-columns:1fr 1fr;gap:4px;height:44px;padding:5px;border-radius:6px;background:var(--subtle)}
+.wt-week-visual i{border-radius:4px;background:var(--surface);border:1px solid var(--border)}
+.wt-week-visual.unified{grid-template-columns:1fr}.wt-week-visual.split i:first-child{opacity:.45}
+.wt-option{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:var(--s3);padding:var(--s3);text-align:left;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface)}
+.wt-option:hover,.wt-option.selected{border-color:var(--accent-line);background:var(--accent-soft)}.wt-option > .ic{color:var(--accent)}
+.wt-option > span:nth-child(2){display:grid;gap:2px}.wt-option small{color:var(--muted);font-size:var(--fs-11);line-height:1.4}
+.wt-coffee{display:flex;align-items:center;justify-content:center;gap:6px;margin-top:var(--s2);color:var(--muted);font-size:var(--fs-11)}.wt-coffee a{color:var(--text);font-weight:600}
 
 @media (max-width:560px){
   .walkthrough{padding:var(--s4);max-height:88vh}
   .themecard,.accentcard,.denscard{flex:1 1 140px}
+  .wt-features{grid-template-columns:1fr}
+  .wt-features > h3{grid-column:auto}
+  .wt-appearance-row,.wt-week-layouts{grid-template-columns:1fr}
 }
 
 
@@ -2365,6 +2419,9 @@
    spread shadow, so there is a single rectangle to keep in step with the
    page rather than four panels that have to agree with each other. */
 .tour{position:fixed;inset:0;z-index:95;pointer-events:none}
+.tour-demo-targets{position:fixed;z-index:94;right:18px;top:72px;width:210px;display:grid;gap:4px;padding:8px;border:1px solid var(--border);border-radius:var(--r-lg);background:var(--sidebar);box-shadow:var(--sh-lg)}
+.tour-demo-targets > div{display:flex;align-items:center;gap:9px;min-height:36px;padding:0 10px;border-radius:var(--r-sm);color:var(--text);font-size:var(--fs-13);font-weight:600}
+.tour-demo-targets > div .ic{color:var(--muted)}
 .tour-hole{
   position:fixed;border-radius:var(--r-md);
   /* The cut-out. Everything outside it is covered; the rectangle itself is

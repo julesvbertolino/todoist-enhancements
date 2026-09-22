@@ -171,17 +171,22 @@ export function TaskRow({
           ...gesture.style,
         }}
         aria-selected={picked || undefined}
+        onMouseDown={(e) => {
+          if (e.shiftKey || e.metaKey || e.ctrlKey) e.preventDefault();
+        }}
         /* Cmd (or Ctrl) and a click picks the row out instead of opening it:
            the same gesture every file list has used for thirty years, and the
            only one that does not cost the plain click its meaning. */
         onClick={(e) => {
           if (e.shiftKey) {
             e.preventDefault();
+            e.currentTarget.focus({ preventScroll: true });
             pickRange(e.metaKey || e.ctrlKey);
             return;
           }
           if (e.metaKey || e.ctrlKey) {
             e.preventDefault();
+            e.currentTarget.focus({ preventScroll: true });
             toggleSelection(item.id);
             return;
           }

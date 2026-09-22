@@ -6,6 +6,58 @@ Every line is marked with what it is: 🆕 something the app did not do before,
 🎨 something it already did, drawn, worded or done differently, 🐛 something
 that was wrong. New first, then changed, then fixed.
 
+## 1.12.1
+
+A small follow-up to simplify where the cross-device settings marker lives.
+
+🎨 **The settings task now lives in Inbox.** Enhanced no longer creates a
+dedicated project for `* Enhanced for Todoist settings`. If the marker already
+exists in another project, the next settings sync moves it to Inbox; an old
+project left empty is not deleted automatically.
+
+## 1.12.0
+
+A safer recurring-task engine, cross-device settings, complete onboarding and
+the interaction and layout fixes validated across issues 48–56.
+
+🆕 **Settings follow the account across devices.** Enhanced reads its
+preferences from a dedicated Todoist project when one exists, creates it when
+needed, and updates the formatted settings task after every change without
+putting it in Inbox or triggering Inbox automations.
+
+🆕 **Bulk editing that understands recurrence.** Mixed selections can advance
+each recurring task to its own next occurrence while leaving one-off tasks
+alone, with the date shortcuts kept visible before the full date picker.
+
+🆕 **A complete first-run tour.** The walkthrough always uses a safe demo
+snapshot, so folders, project icons, quick tasks, subtasks, estimates and the
+review are all shown even when the connected account does not contain them.
+
+🎨 **A simpler choice for Today and My Week.** Choose either one combined My
+Week page or separate Today + My Week pages. The obsolete duplicated-today
+variant migrates automatically.
+
+🎨 **Settings and onboarding refinement.** The long settings page scrolls to
+its end, the account karma reads as progress, and the lighter coffee prompt
+lives only in Settings with the maintainer's photo, a borderless card, clearer
+copy and a visible close button.
+
+🎨 **Consistent page measures.** List headers keep the same width across
+projects, tags, views and the Eisenhower Matrix; boards and matrices alone may
+use the wider content area.
+
+🐛 **Recurring tasks advance instead of becoming stuck completed.** Completing
+or skipping now uses Todoist's recurrence-aware close operation and lets
+Todoist calculate the next date, eliminating tasks that bounced from tomorrow
+back to today or yesterday, duplicated, or remained checked and unclickable.
+
+🐛 **Keyboard bulk deletion works after modified clicks.** Cmd/Ctrl-click keeps
+the selected row focused, restoring Cmd/Ctrl+Backspace without selecting page
+text.
+
+🐛 **Keyboard completion respects a selection.** Pressing `E` with several
+tasks selected completes every selected task instead of only the focused row.
+
 ## 1.11.0
 
 A searchable icon for every project, a workspace filter wherever more than

@@ -11,9 +11,10 @@ import { DATE_FORMATS, formatDay, type DateFormat } from '@/domain/dates';
 import { HOME_VIEWS, WEEK_LAYOUTS, type HomeView, type WeekLayout } from '@/store/prefs';
 import { DEFAULT_WEEK_LABEL } from '@/domain/types';
 import type { Locale, TranslationKey } from '@/i18n';
-import { APP_NAME, AUTHOR, COFFEE_URL, GITHUB_URL, SITE_URL, VERSION } from '@/app-info';
+import { APP_NAME, AUTHOR, AUTHOR_AVATAR_URL, COFFEE_URL, GITHUB_URL, SITE_URL, VERSION } from '@/app-info';
+import { karmaStanding } from '@/domain/karma';
 
-const SECTIONS = ['account', 'general', 'week', 'conflicts', 'about'] as const;
+const SECTIONS = ['account', 'general', 'features', 'appearance', 'conflicts', 'about'] as const;
 
 /** A date with two digits in the day and a month that is short in both
  *  languages, so every option in the list is the same length. */
@@ -31,10 +32,14 @@ export function SettingsView() {
   const { t, locale } = useT();
   const prefs = useStore((s) => s.prefs);
   const setPrefs = useStore((s) => s.setPrefs);
-  const setWalkthrough = useStore((s) => s.setWalkthrough);
   const setLocale = useStore((s) => s.setLocale);
   const disconnect = useStore((s) => s.disconnect);
   const user = useStore((s) => s.snapshot.user);
+  const karma = karmaStanding(user?.karma);
+  const calloutKey = `coffee-callout:${user?.id ?? 'anonymous'}`;
+  const [showCoffeeCallout, setShowCoffeeCallout] = useState(
+    () => localStorage.getItem(calloutKey) !== 'dismissed',
+  );
 
   const current = useCurrentSection();
   const avatar = avatarUrl(user);
@@ -107,7 +112,49 @@ export function SettingsView() {
               </button>
             </div>
             <p className="sethint">{t('settings.disconnectHint')}</p>
+            {karma && (
+              <div className="karma-detail">
+                <div className="karma-scale">
+                  <span className="karma-progress" aria-label={`${karma.progress}%`}>
+                    <i style={{ width: `${karma.progress}%` }} />
+                    <small>{karma.rank.from.toLocaleString(intl)}</small>
+                    <strong>
+                      {t(`karma.${karma.rank.key}` as TranslationKey)} ·{' '}
+                      {karma.karma.toLocaleString(intl)}/{karma.rank.to?.toLocaleString(intl) ?? '∞'}
+                    </strong>
+                    <small>{karma.rank.to?.toLocaleString(intl) ?? '∞'}</small>
+                  </span>
+                </div>
+                {karma.remaining !== null && karma.next && (
+                  <p>{t('settings.karmaRemaining', {
+                    remaining: karma.remaining,
+                    next: t(`karma.${karma.next.key}` as TranslationKey),
+                  })}</p>
+                )}
+              </div>
+            )}
           </section>
+
+          {showCoffeeCallout && (
+            <aside className="coffee-callout">
+              <img className="coffee-callout-avatar" src={AUTHOR_AVATAR_URL} alt="Jules-Valentin Bertolino" referrerPolicy="no-referrer" />
+              <div>
+                <strong>{t('settings.coffeeCalloutTitle')}</strong>
+                <span>{t('settings.coffeeCalloutBody')}</span>
+                <a className="btn" href={COFFEE_URL} target="_blank" rel="noreferrer noopener">
+                  {t('settings.coffeeCalloutAction')}
+                </a>
+              </div>
+              <button
+                className="coffee-callout-close"
+                aria-label={t('common.close')}
+                onClick={() => {
+                  localStorage.setItem(calloutKey, 'dismissed');
+                  setShowCoffeeCallout(false);
+                }}
+              ><Icon name="close" size="sm" /></button>
+            </aside>
+          )}
 
           {/* ---------------------------------------------------- General */}
           <section className="setsection" id="general">
@@ -122,18 +169,6 @@ export function SettingsView() {
                   { value: 'en', label: 'English' },
                   { value: 'fr', label: 'Français' },
                 ]}
-              />
-            </Row>
-
-            <Row title={t('settings.homepage')} hint={t('settings.homepageHint')}>
-              <Select
-                value={prefs.homepage}
-                onChange={(value) => setPrefs({ homepage: value as HomeView })}
-                ariaLabel={t('settings.homepage')}
-                options={HOME_VIEWS.map((view) => ({
-                  value: view,
-                  label: t(`nav.${view}` as TranslationKey),
-                }))}
               />
             </Row>
 
@@ -163,62 +198,33 @@ export function SettingsView() {
               />
             </Row>
 
-            <Row title={t('settings.theme')} hint={t('settings.themeHint')} wide>
-              <ThemeChoice
-                value={prefs.theme}
-                onChange={(value) => setPrefs({ theme: value })}
-              />
-            </Row>
-
-            <Row title={t('settings.accent')} hint={t('settings.accentHint')} wide>
-              <AccentChoice
-                value={prefs.accent}
-                custom={prefs.accentCustom}
-                onChange={(value) => setPrefs({ accent: value })}
-                onCustom={(value) => setPrefs({ accent: 'custom', accentCustom: value })}
-              />
-            </Row>
-
-            <Row title={t('settings.density')} hint={t('settings.densityHint')} wide>
-              <DensityChoice
-                value={prefs.density}
-                onChange={(value) => setPrefs({ density: value })}
-              />
-            </Row>
-
-            <Row title={t('settings.naturalDates')} hint={t('settings.naturalDatesHint')}>
-              <Switch
-                checked={prefs.naturalDates}
-                onChange={() => setPrefs({ naturalDates: !prefs.naturalDates })}
-                label={t('settings.naturalDates')}
-              />
-            </Row>
-
-            <Row title={t('settings.searchSections')} hint={t('settings.searchSectionsHint')}>
-              <Switch
-                checked={prefs.includeSectionsInSearch}
-                onChange={() => setPrefs({ includeSectionsInSearch: !prefs.includeSectionsInSearch })}
-                label={t('settings.searchSections')}
-              />
-            </Row>
-
-            <Row title={t('settings.eisenhower')} hint={t('settings.eisenhowerHint')}>
-              <Switch
-                checked={prefs.eisenhowerEnabled}
-                onChange={() => setPrefs({ eisenhowerEnabled: !prefs.eisenhowerEnabled })}
-                label={t('settings.eisenhower')}
-              />
-            </Row>
-
             {/* Read from the account, so it is stated rather than offered. */}
             <Row title={t('settings.weekStart')} hint={t('settings.weekStartHint')}>
               <span className="setvalue">{dayNames[((user?.start_day ?? 1) + 6) % 7]}</span>
             </Row>
           </section>
 
-          {/* --------------------------------------------------- My week */}
-          <section className="setsection" id="week">
-            <h2>{t('settings.week')}</h2>
+          {/* Settings that shape the product rather than its formatting. */}
+          <section className="setsection" id="features">
+            <h2>{t('settings.features')}</h2>
+            <Row title={t('settings.homepage')} hint={t('settings.homepageHint')}>
+              <Select
+                value={prefs.homepage}
+                onChange={(value) => setPrefs({ homepage: value as HomeView })}
+                ariaLabel={t('settings.homepage')}
+                options={HOME_VIEWS.map((view) => ({ value: view, label: t(`nav.${view}` as TranslationKey) }))}
+              />
+            </Row>
+            <Row title={t('settings.naturalDates')} hint={t('settings.naturalDatesHint')}>
+              <Switch checked={prefs.naturalDates} onChange={() => setPrefs({ naturalDates: !prefs.naturalDates })} label={t('settings.naturalDates')} />
+            </Row>
+            <Row title={t('settings.searchSections')} hint={t('settings.searchSectionsHint')}>
+              <Switch checked={prefs.includeSectionsInSearch} onChange={() => setPrefs({ includeSectionsInSearch: !prefs.includeSectionsInSearch })} label={t('settings.searchSections')} />
+            </Row>
+            <Row title={t('settings.eisenhower')} hint={t('settings.eisenhowerHint')}>
+              <Switch checked={prefs.eisenhowerEnabled} onChange={() => setPrefs({ eisenhowerEnabled: !prefs.eisenhowerEnabled })} label={t('settings.eisenhower')} />
+            </Row>
+            <h3 className="setsubhead">{t('settings.week')}</h3>
 
             <Row title={t('settings.perDayCapacity')} hint={t('settings.dailyCapacityHint')} />
             <div className="capgrid">
@@ -330,6 +336,25 @@ export function SettingsView() {
             </Row>
           </section>
 
+          {/* ------------------------------------------------ Appearance */}
+          <section className="setsection" id="appearance">
+            <h2>{t('settings.appearance')}</h2>
+            <Row title={t('settings.theme')} hint={t('settings.themeHint')} wide>
+              <ThemeChoice value={prefs.theme} onChange={(value) => setPrefs({ theme: value })} />
+            </Row>
+            <Row title={t('settings.accent')} hint={t('settings.accentHint')} wide>
+              <AccentChoice
+                value={prefs.accent}
+                custom={prefs.accentCustom}
+                onChange={(value) => setPrefs({ accent: value })}
+                onCustom={(value) => setPrefs({ accent: 'custom', accentCustom: value })}
+              />
+            </Row>
+            <Row title={t('settings.density')} hint={t('settings.densityHint')} wide>
+              <DensityChoice value={prefs.density} onChange={(value) => setPrefs({ density: value })} />
+            </Row>
+          </section>
+
           {/* ------------------------------------------------- Conflicts */}
           <section className="setsection" id="conflicts">
             <h2>{t('settings.conflicts')}</h2>
@@ -366,7 +391,7 @@ export function SettingsView() {
             </div>
 
             <Row title={t('settings.replayWalkthrough')} hint={t('settings.replayWalkthroughHint')}>
-              <button className="btn outline" onClick={() => setWalkthrough(true)}>
+              <button className="btn outline" onClick={() => window.dispatchEvent(new Event('enhanced:replay-onboarding'))}>
                 {t('settings.replayWalkthroughAction')}
               </button>
             </Row>

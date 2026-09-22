@@ -250,6 +250,7 @@ export function Sidebar({
           <ProjectDropRow projectId={project.id}>
             <button
               className="navitem folderitem"
+              data-tour="folder"
               aria-expanded={isOpen}
               onClick={() => setOpenFolders((prev) => ({ ...prev, [project.id]: !isOpen }))}
             >
@@ -296,6 +297,7 @@ export function Sidebar({
           >
             <button
               className={`navitem${folderLike ? ' folderitem' : ''}${isOver ? ' dropping' : ''}`}
+              data-tour={folderLike ? 'folder' : customIcon ? 'project-icon' : undefined}
               style={depth > 0 ? { paddingLeft: `${8 + depth * 16}px` } : undefined}
               aria-current={route.view === 'project' && route.id === project.id ? 'page' : undefined}
               /* A press that has just been held is a press that has just done

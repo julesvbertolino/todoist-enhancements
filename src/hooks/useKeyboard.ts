@@ -309,7 +309,16 @@ export function useKeyboard(bridge: KeyboardBridge) {
              that skipped that would be a second way of completing a task that
              looks nothing like the first. */
           const at = lastIndex;
-          current.querySelector<HTMLElement>('.check')?.click();
+          const picked = store.selection;
+          const many = picked.length > 1 && picked.includes(id);
+          if (many) {
+            for (const pickedId of picked) {
+              document.querySelector<HTMLElement>(`[data-task-id="${CSS.escape(pickedId)}"] .check`)?.click();
+            }
+            store.clearSelection();
+          } else {
+            current.querySelector<HTMLElement>('.check')?.click();
+          }
           window.setTimeout(() => land(rows()[Math.min(at, rows().length - 1)]), TICK_SETTLES_MS);
           return;
         }

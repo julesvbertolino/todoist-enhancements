@@ -21,6 +21,7 @@ import { patchParent } from '@/domain/order';
 import { buildDemoSnapshot } from '@/demo/demoData';
 import {
   defaultPreferences, hydratePreferences, viewPrefs as readViewPrefs,
+  PREFERENCES_TASK_CONTENT,
   type Preferences,
 } from './prefs';
 
@@ -63,6 +64,47 @@ function nextChildOrder(
 const PREFS_KEY = 'preferences';
 /** How often the app asks Todoist what changed while the tab is in the foreground. */
 const POLL_INTERVAL_MS = 45_000;
+let preferencesWriteTimer: number | null = null;
+let creatingPreferencesTask = false;
+let tourSnapshotBackup: Snapshot | null = null;
+
+function schedulePreferencesWrite(get: () => AppState) {
+  if (!get().connected || get().demo) return;
+  if (preferencesWriteTimer) window.clearTimeout(preferencesWriteTimer);
+  preferencesWriteTimer = window.setTimeout(() => {
+    preferencesWriteTimer = null;
+    void get().ensurePreferencesTask();
+  }, 300);
+}
+
+function remotePreferences(snapshot: Snapshot, locale: Locale): Preferences | null {
+  const marker = Object.values(snapshot.items).find(
+    (item) => !item.is_deleted && item.content === PREFERENCES_TASK_CONTENT,
+  );
+  if (!marker?.description.trim()) return null;
+  try {
+    return hydratePreferences(JSON.parse(marker.description), locale);
+  } catch {
+    return null;
+  }
+}
+
+/** Demo data cannot ask Todoist to resolve recurrence, so cover the ordinary
+ * daily and weekly rules used by the demo without inventing a general parser. */
+function advanceDemoRecurrence(snapshot: Snapshot, id: string): Snapshot {
+  const item = snapshot.items[id];
+  if (!item?.due?.is_recurring) return snapshot;
+  const current = new Date(`${item.due.date.slice(0, 10)}T12:00:00`);
+  const rule = item.due.string.toLowerCase();
+  const days = /(?:every day|daily|chaque jour|quotidien)/.test(rule) ? 1
+    : /(?:every week|weekly|every (?:mon|tue|wed|thu|fri|sat|sun)|chaque semaine|tous les|hebdomadaire)/.test(rule) ? 7
+      : 1;
+  current.setDate(current.getDate() + days);
+  return patchItem(snapshot, id, {
+    due: { ...item.due, date: current.toISOString().slice(0, 10) },
+    checked: false,
+  });
+}
 
 export type SyncState = 'idle' | 'loading' | 'syncing' | 'error' | 'offline';
 
@@ -119,6 +161,10 @@ interface AppState {
   setPrefs: (patch: Partial<Preferences>) => void;
   setViewPrefs: (viewKey: string, patch: Partial<ViewPrefs>) => void;
   setLocale: (locale: Locale) => void;
+  /** Creates or updates the hidden Todoist task that is canonical for preferences. */
+  ensurePreferencesTask: () => Promise<void>;
+  beginTourPreview: () => void;
+  endTourPreview: () => void;
 
   /* Mutations */
   /**
@@ -216,6 +262,8 @@ interface AppState {
    */
   nestProject: (id: string, parentId: string | null) => Promise<void>;
   skipOccurrence: (id: string) => Promise<void>;
+  /** Advances every recurring task in a mixed selection, leaving one-off tasks alone. */
+  skipOccurrences: (ids: string[]) => Promise<number>;
   /**
    * Creates a project, in a workspace when one is named and personal when
    * not. Returns the id it ends up under once the round trip settles — the
@@ -361,9 +409,17 @@ export const useStore = create<AppState>((set, get) => ({
        preferences they have no other use for. */
     setWeekLabel(prefs.weekLabel);
     const connected = auth.isConnected();
+    const resumeDemo = !connected && sessionStorage.getItem('demo') === '1';
 
     // Show the cached copy immediately, then reconcile with Todoist.
-    set({ prefs, snapshot, connected, ready: true, pendingCount: queue.length });
+    set({
+      prefs,
+      snapshot: resumeDemo ? buildDemoSnapshot(prefs.locale) : snapshot,
+      connected: connected || resumeDemo,
+      demo: resumeDemo,
+      ready: true,
+      pendingCount: queue.length,
+    });
 
     if (connected) {
       void get().refresh(snapshot.syncToken === '*');
@@ -376,8 +432,12 @@ export const useStore = create<AppState>((set, get) => ({
     try {
       const response = await sync('*');
       const snapshot = applySync(emptySnapshot(), response);
-      set({ connected: true, snapshot, syncState: 'idle' });
+      const canonical = remotePreferences(snapshot, get().prefs.locale);
+      if (canonical) setWeekLabel(canonical.weekLabel);
+      set({ connected: true, snapshot, prefs: canonical ?? get().prefs, syncState: 'idle' });
       void idb.saveSnapshot(snapshot);
+      if (canonical) void idb.savePrefs(PREFS_KEY, canonical);
+      else window.setTimeout(() => void get().ensurePreferencesTask(), 0);
       return true;
     } catch (error) {
       await auth.disconnect();
@@ -391,6 +451,7 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   startDemo() {
+    sessionStorage.setItem('demo', '1');
     set({
       demo: true,
       connected: true,
@@ -402,6 +463,7 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   async disconnect() {
+    sessionStorage.removeItem('demo');
     await auth.disconnect();
     await idb.clearAll();
     set({
@@ -416,6 +478,7 @@ export const useStore = create<AppState>((set, get) => ({
 
   async refresh(full = false) {
     if (get().demo) return;
+    if (tourSnapshotBackup) return;
     if (!auth.isConnected()) return;
     if (get().syncState === 'syncing') return;
 
@@ -429,8 +492,14 @@ export const useStore = create<AppState>((set, get) => ({
       const token = full ? '*' : get().snapshot.syncToken;
       const response = await sync(token);
       const snapshot = applySync(full ? emptySnapshot() : get().snapshot, response);
-      set({ snapshot, syncState: 'idle' });
+      const canonical = preferencesWriteTimer
+        ? null
+        : remotePreferences(snapshot, get().prefs.locale);
+      if (canonical) setWeekLabel(canonical.weekLabel);
+      set({ snapshot, prefs: canonical ?? get().prefs, syncState: 'idle' });
       schedulePersist(snapshot);
+      if (canonical) void idb.savePrefs(PREFS_KEY, canonical);
+      else window.setTimeout(() => void get().ensurePreferencesTask(), 0);
     } catch (error) {
       if (error instanceof NotConnectedError) {
         set({ connected: false, syncState: 'idle' });
@@ -472,6 +541,7 @@ export const useStore = create<AppState>((set, get) => ({
     if (patch.weekLabel !== undefined) setWeekLabel(prefs.weekLabel);
     set({ prefs });
     void idb.savePrefs(PREFS_KEY, prefs);
+    schedulePreferencesWrite(get);
   },
 
   setViewPrefs(viewKey, patch) {
@@ -482,6 +552,7 @@ export const useStore = create<AppState>((set, get) => ({
     };
     set({ prefs });
     void idb.savePrefs(PREFS_KEY, prefs);
+    schedulePreferencesWrite(get);
   },
 
   setLocale(locale) {
@@ -490,6 +561,49 @@ export const useStore = create<AppState>((set, get) => ({
     // The demo account is written in the interface language, so switching
     // language rebuilds it rather than leaving half the screen translated.
     if (get().demo) set({ snapshot: buildDemoSnapshot(locale) });
+  },
+
+  async ensurePreferencesTask() {
+    if (!get().connected || get().demo || creatingPreferencesTask) return;
+    creatingPreferencesTask = true;
+    try {
+      const description = JSON.stringify(get().prefs, null, 2);
+      const inbox = get().snapshot.user?.inbox_project_id;
+      if (!inbox) return;
+
+      const marker = Object.values(get().snapshot.items).find(
+        (item) => !item.is_deleted && item.content === PREFERENCES_TASK_CONTENT,
+      );
+      if (marker) {
+        if (marker.project_id !== inbox) {
+          await get().moveTask(marker.id, { project_id: inbox });
+        }
+        if (marker.description !== description) {
+          await get().updateTask(marker.id, { description });
+        }
+      } else {
+        await get().createTask({
+          content: PREFERENCES_TASK_CONTENT,
+          description,
+          project_id: inbox,
+        });
+      }
+    } finally {
+      creatingPreferencesTask = false;
+    }
+  },
+
+  beginTourPreview() {
+    if (get().demo || tourSnapshotBackup) return;
+    tourSnapshotBackup = get().snapshot;
+    set({ snapshot: buildDemoSnapshot(get().prefs.locale) });
+  },
+
+  endTourPreview() {
+    if (!tourSnapshotBackup) return;
+    const snapshot = tourSnapshotBackup;
+    tourSnapshotBackup = null;
+    set({ snapshot });
   },
 
   /**
@@ -631,6 +745,18 @@ export const useStore = create<AppState>((set, get) => ({
   async toggleTask(id) {
     const item = get().snapshot.items[id];
     if (!item || isUncompletable(item)) return;
+
+    /* `item_close` is Todoist's official recurrence-aware completion command.
+       Todoist computes the next date from the rule; sending the current due
+       back through item_update_date_complete made the old occurrence bounce
+       between dates and occasionally remain checked. */
+    if (!item.checked && item.due?.is_recurring) {
+      const demo = get().demo;
+      await get().apply([command('item_close', { id })], (snapshot) =>
+        demo ? advanceDemoRecurrence(snapshot, id) : patchItem(snapshot, id, { checked: true }));
+      await get().refresh(true);
+      return;
+    }
     const checked = !item.checked;
     const cmd = checked ? completeItem(id) : uncompleteItem(id);
     await get().apply([cmd], (snapshot) => patchItem(snapshot, id, { checked }));
@@ -1012,8 +1138,29 @@ export const useStore = create<AppState>((set, get) => ({
   async skipOccurrence(id) {
     const item = get().snapshot.items[id];
     if (!item?.due?.is_recurring) return;
-    await get().apply([command('item_close', { id })], (snapshot) => snapshot);
-    await get().refresh();
+    const demo = get().demo;
+    await get().apply([command('item_close', { id })], (snapshot) =>
+      demo ? advanceDemoRecurrence(snapshot, id) : patchItem(snapshot, id, { checked: true }));
+    await get().refresh(true);
+  },
+
+  async skipOccurrences(ids) {
+    const recurring = [...new Set(ids)].filter(
+      (id) => get().snapshot.items[id]?.due?.is_recurring,
+    );
+    if (recurring.length === 0) return 0;
+    const demo = get().demo;
+    await get().apply(
+      recurring.map((id) => command('item_close', { id })),
+      (snapshot) => recurring.reduce(
+        (current, id) => demo
+          ? advanceDemoRecurrence(current, id)
+          : patchItem(current, id, { checked: true }),
+        snapshot,
+      ),
+    );
+    await get().refresh(true);
+    return recurring.length;
   },
 
   async createLabel(name, color = 'charcoal') {

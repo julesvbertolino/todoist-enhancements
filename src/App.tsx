@@ -54,7 +54,10 @@ export function App() {
   const demo = useStore((s) => s.demo);
   const walkthroughOpen = useStore((s) => s.walkthrough);
   const [tourOpen, setTourOpen] = useState(false);
+  const [onboardingStarted, setOnboardingStarted] = useState(false);
   const setWalkthrough = useStore((s) => s.setWalkthrough);
+  const beginTourPreview = useStore((s) => s.beginTourPreview);
+  const endTourPreview = useStore((s) => s.endTourPreview);
   const toasts = useStore((s) => s.toasts);
   const dismissToast = useStore((s) => s.dismissToast);
 
@@ -77,6 +80,11 @@ export function App() {
   const [placement, setPlacement] = useState<ComposerPlacement>({});
 
   useEffect(() => { void init(); }, [init]);
+  useEffect(() => {
+    if (!tourOpen) return;
+    beginTourPreview();
+    return endTourPreview;
+  }, [tourOpen, beginTourPreview, endTourPreview]);
 
   /* The address bar wins, always — a shared or reopened link must land where
      it says. The homepage only fills in when there is nothing to obey. */
@@ -89,6 +97,15 @@ export function App() {
      written depends on the scheme that ended up resolved. */
   useEffect(() => applyAccent(accent, accentCustom), [accent, accentCustom, theme]);
   useEffect(() => (connected ? startPolling() : undefined), [connected, startPolling]);
+  useEffect(() => {
+    const replay = () => {
+      setWalkthrough(false);
+      navigate('week');
+      window.setTimeout(() => setTourOpen(true), 60);
+    };
+    window.addEventListener('enhanced:replay-onboarding', replay);
+    return () => window.removeEventListener('enhanced:replay-onboarding', replay);
+  }, [setWalkthrough]);
 
   /* The first run — for a real account that has not had one, and for the demo,
      which is where most people meet this app first and is exactly where a tour
@@ -97,17 +114,12 @@ export function App() {
      Opened here and closed by the dialog, so asking for it again from Settings
      goes through the same door. */
   useEffect(() => {
-    if (ready && (connected || demo) && !hasOnboarded(userId)) setWalkthrough(true);
-  }, [ready, connected, demo, userId, setWalkthrough]);
-
-  /* The tour runs over My week, so the setup dialog hands over by going there
-     first. A frame later, or it measures a page that has not been laid out. */
-  const startTour = () => {
-    setWalkthrough(false);
-    navigate('week');
-    window.setTimeout(() => setTourOpen(true), 60);
-  };
-
+    if (ready && (connected || demo) && !hasOnboarded(userId) && !onboardingStarted) {
+      setOnboardingStarted(true);
+      navigate('week');
+      window.setTimeout(() => setTourOpen(true), 100);
+    }
+  }, [ready, connected, demo, userId, onboardingStarted]);
 
   if (!ready) {
     return <div className="connect"><p className="empty">{t('common.loading')}</p></div>;
@@ -154,9 +166,14 @@ export function App() {
       <Walkthrough
         open={walkthroughOpen}
         onDone={() => setWalkthrough(false)}
-        onTour={startTour}
       />
-      <Tour open={tourOpen} onDone={() => setTourOpen(false)} />
+      <Tour
+        open={tourOpen}
+        onDone={() => {
+          setTourOpen(false);
+          setWalkthrough(true);
+        }}
+      />
 
       {toasts.length > 0 && (
         <div className="toasts">

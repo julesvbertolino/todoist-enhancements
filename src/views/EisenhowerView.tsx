@@ -62,7 +62,7 @@ export function EisenhowerView({ onOpen, onUnestimated }: EisenhowerViewProps) {
   }, [visibleItems, roots, urgentRules, importantPriorities, weekLabel]);
 
   return (
-    <div className="page wide eisenhower-page">
+    <div className="page eisenhower-page">
       <PageHeader
         title={t('matrix.title')}
         load={load}

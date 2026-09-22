@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from '@/components/Icon';
 import { COMPLETION_LINGER_MS } from '@/components/TaskRow';
 import { EstimateField } from '@/components/EstimateField';
-import { CoffeeLine } from '@/components/CoffeeLine';
 import { Select } from '@/components/Select';
 import { useT } from '@/hooks/useT';
 import { useData } from '@/hooks/useData';
@@ -81,6 +80,7 @@ export function ReviewView({ onOpen }: ReviewViewProps) {
   const prefs = useStore((s) => s.prefs);
   const sendTo = useStore((s) => s.sendTo);
   const toggleTask = useStore((s) => s.toggleTask);
+  const skipOccurrence = useStore((s) => s.skipOccurrence);
   const moveTask = useStore((s) => s.moveTask);
 
   const startDay = snapshot.user?.start_day ?? 1;
@@ -473,6 +473,17 @@ export function ReviewView({ onOpen }: ReviewViewProps) {
           </span>
         ) : (
           <span className="reviewactions">
+            {item.due?.is_recurring && (
+              <button
+                className="btn quiet"
+                onClick={() => {
+                  forget(item.id);
+                  void skipOccurrence(item.id);
+                }}
+              >
+                {t('review.nextOccurrence')}
+              </button>
+            )}
             {s.actions.map((action) => (
               <button
                 key={action}
@@ -836,10 +847,6 @@ export function ReviewView({ onOpen }: ReviewViewProps) {
             {t('review.again')}
           </button>
         </div>
-        {/* Under the two buttons, after the review is behind you: the one
-            moment in the app where a line about the app itself is a footnote
-            rather than an interruption. */}
-        <CoffeeLine />
       </section>
     );
   }

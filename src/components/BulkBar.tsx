@@ -89,6 +89,8 @@ export function BulkBar() {
   const removeTasks = useStore((s) => s.removeTasks);
   const updateMany = useStore((s) => s.updateMany);
   const moveMany = useStore((s) => s.moveMany);
+  const skipOccurrences = useStore((s) => s.skipOccurrences);
+  const toast = useStore((s) => s.toast);
   const snapshot = useStore((s) => s.snapshot);
   const [date, setDate] = useState('');
   const [projectQuery, setProjectQuery] = useState('');
@@ -98,6 +100,7 @@ export function BulkBar() {
 
   const count = selection.length;
   const picked = selection.map((id) => snapshot.items[id]).filter(Boolean);
+  const recurringCount = picked.filter((item) => item.due?.is_recurring).length;
 
   const send = async (target: DropTarget, destination: string) => {
     const ids = selection;
@@ -225,6 +228,22 @@ export function BulkBar() {
             >
               <span>{t('review.to.someday')}</span>
             </button>
+            {recurringCount > 0 && (
+              <button
+                className="opt"
+                onClick={() => {
+                  const ids = selection;
+                  close();
+                  clearSelection();
+                  void skipOccurrences(ids).then((skipped) => {
+                    if (skipped > 0) toast(t('bulk.skippedRecurring', { count: skipped }));
+                  });
+                }}
+              >
+                <span>{t('task.nextOccurrence')}</span>
+                <small>{t('bulk.recurringSubset', { count: recurringCount })}</small>
+              </button>
+            )}
             <hr />
             {/* A date, rather than the three shortcuts, for the times the
                 answer is neither today nor this week. */}
@@ -233,7 +252,6 @@ export function BulkBar() {
                 value={date}
                 label={t('task.schedule')}
                 placeholder={t('bulk.pickDate')}
-                openOnMount
                 onChange={(next) => {
                   setDate('');
                   if (!next) return;

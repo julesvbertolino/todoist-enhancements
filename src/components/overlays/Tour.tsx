@@ -30,7 +30,9 @@ interface Stop {
 }
 
 const STOPS: Stop[] = [
-  { target: 'metrics', title: 'tour.week', body: 'tour.weekBody' },
+  { target: 'metrics', title: 'walkthrough.feature.estimates', body: 'walkthrough.feature.estimatesBody' },
+  { target: 'folder', title: 'walkthrough.feature.folders', body: 'walkthrough.feature.foldersBody' },
+  { target: 'project-icon', title: 'walkthrough.feature.icons', body: 'walkthrough.feature.iconsBody' },
   { target: 'quick', title: 'tour.quick', body: 'tour.quickBody' },
   { target: 'subtasks', title: 'tour.subtasks', body: 'tour.subtasksBody' },
   { target: 'review', title: 'tour.review', body: 'tour.reviewBody' },
@@ -52,14 +54,14 @@ const GAP = 14;
  * out of a tour on a window too short to show it at the start.
  */
 function exists(target: string): boolean {
-  const el = document.querySelector<HTMLElement>(`[data-tour="${target}"]`);
+  const el = targetElement(target);
   if (!el) return false;
   const r = el.getBoundingClientRect();
   return r.width >= 4 && r.height >= 4;
 }
 
 function measure(target: string): Hole | null {
-  const el = document.querySelector<HTMLElement>(`[data-tour="${target}"]`);
+  const el = targetElement(target);
   if (!el) return null;
   const r = el.getBoundingClientRect();
   if (r.width < 4 || r.height < 4) return null;
@@ -85,6 +87,16 @@ function measure(target: string): Hole | null {
     top: top - PAD, left: left - PAD,
     width: right - left + PAD * 2, height: bottom - top + PAD * 2,
   };
+}
+
+function targetElement(target: string): HTMLElement | null {
+  const candidates = document.querySelectorAll<HTMLElement>(
+    `[data-tour="${target}"], [data-tour-fallback="${target}"]`,
+  );
+  return [...candidates].find((candidate) => {
+    const rect = candidate.getBoundingClientRect();
+    return rect.width >= 4 && rect.height >= 4;
+  }) ?? null;
 }
 
 export function Tour({ open, onDone }: { open: boolean; onDone: () => void }) {
@@ -113,7 +125,7 @@ export function Tour({ open, onDone }: { open: boolean; onDone: () => void }) {
   useLayoutEffect(() => {
     if (!open || !stop) return;
 
-    const el = document.querySelector<HTMLElement>(`[data-tour="${stop.target}"]`);
+    const el = targetElement(stop.target);
     /* Instant, not smooth. The highlight has a transition of its own, so a
        smooth scroll means measuring a page that is still moving: the rectangle
        glides to where the element *was* and only catches up at the end. One
@@ -151,7 +163,21 @@ export function Tour({ open, onDone }: { open: boolean; onDone: () => void }) {
     if (open && stops !== null && stops.length === 0) onDone();
   }, [open, stops, onDone]);
 
-  if (!open || !stop || !hole) return null;
+  if (!open) return null;
+
+  /* On compact layouts the real sidebar is intentionally absent. These are
+     not replacement screenshots: they are a small live demo of the exact
+     sidebar rows the tour would otherwise be unable to point at. */
+  const demoTargets = createPortal(
+    <aside className="tour-demo-targets" aria-hidden="true">
+      <div data-tour-fallback="folder"><Icon name="project" /><span>Client work</span></div>
+      <div data-tour-fallback="project-icon"><Icon name="dashboard" /><span>Website</span></div>
+      <div data-tour-fallback="review"><Icon name="tasks" /><span>{t('nav.review')}</span></div>
+    </aside>,
+    document.body,
+  );
+
+  if (!stop || !hole) return demoTargets;
 
   const last = index === count - 1;
 
@@ -166,7 +192,7 @@ export function Tour({ open, onDone }: { open: boolean; onDone: () => void }) {
     window.innerWidth - CARD_W - GAP,
   );
 
-  return createPortal(
+  const overlay = createPortal(
     <div className="tour" role="dialog" aria-label={t('tour.title')}>
       {/* One element, one enormous shadow: everything outside the rectangle is
           dimmed, and the rectangle itself is left alone. Cheaper and steadier
@@ -198,4 +224,5 @@ export function Tour({ open, onDone }: { open: boolean; onDone: () => void }) {
     </div>,
     document.body,
   );
+  return <>{demoTargets}{overlay}</>;
 }

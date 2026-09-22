@@ -202,7 +202,7 @@ export function buildDemoSnapshot(locale: Locale = 'en', seed = 20260914): Snaps
   addProject('home', copy.projects.home, 'green', 2, { description: copy.projects.homeDescription });
   addProject('site', copy.projects.site, 'blue', 3, {
     is_favorite: true,
-    description: copy.projects.siteDescription,
+    description: `${copy.projects.siteDescription}\n\n<!-- icon:briefcase -->`,
     workspace_id: 'ws-pro',
   });
   addProject('clients', copy.projects.clients, 'grey', 4, { is_folder: true, workspace_id: 'ws-pro' });
@@ -272,6 +272,7 @@ export function buildDemoSnapshot(locale: Locale = 'en', seed = 20260914): Snaps
   });
 
   const everyWeek = locale === 'fr' ? 'tous les lundis' : 'every Monday';
+  const everyDay = locale === 'fr' ? 'tous les jours' : 'every day';
 
   // A spread that exercises every rule: overdue, quick, timed, week, backlog.
   const plan: Array<Partial<Item>> = [
@@ -280,7 +281,7 @@ export function buildDemoSnapshot(locale: Locale = 'en', seed = 20260914): Snaps
     { due: due(today), priority: 2, labels: ['quick', 'est-10'] },
     { due: due(today), priority: 1, labels: ['est-3'], project_id: 'home' },
     { due: due(today, undefined, everyWeek), priority: 1, labels: ['est-5'], project_id: 'home' },
-    { due: due(today, '14:00:00'), priority: 3, labels: ['est-60'] },
+    { due: due(today, '14:00:00', everyDay), priority: 3, labels: ['est-60'] },
     { due: due(today, '09:30:00'), priority: 2, labels: ['est-30'], project_id: 'client-a' },
     { labels: ['week', 'est-90'], priority: 4, project_id: 'site', section_id: 's-doing' },
     { labels: ['week', 'est-45'], priority: 3, project_id: 'site', section_id: 's-todo' },

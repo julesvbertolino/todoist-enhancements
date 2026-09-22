@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Overlay } from './Overlay';
 import { Icon } from '../Icon';
 import { AccentChoice, DensityChoice, ThemeChoice } from '../Choosers';
@@ -40,21 +41,22 @@ import { useIsPhone } from '@/hooks/useTouchLayout';
  */
 
 export function Walkthrough({
-  open, onDone, onTour,
-}: { open: boolean; onDone: () => void; onTour: () => void }) {
+  open, onDone,
+}: { open: boolean; onDone: () => void }) {
   const { t } = useT();
   const prefs = useStore((s) => s.prefs);
   const setPrefs = useStore((s) => s.setPrefs);
   const user = useStore((s) => s.snapshot.user);
   const phone = useIsPhone();
+  const [step, setStep] = useState(0);
 
   /* Finishing records the account and hands over to the tour. Skipping records
      it too and stops there: somebody who skipped the setup did not ask to be
      shown round either. */
-  const finish = (tour: boolean) => {
+  const finish = () => {
     markOnboarded(user?.id);
-    if (tour) onTour();
-    else onDone();
+    setStep(0);
+    onDone();
   };
 
   return (
@@ -68,56 +70,76 @@ export function Walkthrough({
     >
       <div className="walkthrough">
         <div className="wt-head">
-          <span className="wt-mark" aria-hidden="true">
-            <Icon name="week" />
-          </span>
           <div>
-            <h2>{t('walkthrough.welcome')}</h2>
-            <p>{t(phone ? 'walkthrough.welcomeBodyPhone' : 'walkthrough.welcomeBody')}</p>
+            <h2>{t(step === 0 ? 'walkthrough.appearanceTitle' : 'walkthrough.organise')}</h2>
           </div>
-          <button className="wt-skip" onClick={() => finish(false)}>
+          <button className="wt-skip" onClick={finish}>
             {t('walkthrough.skip')}
           </button>
         </div>
 
         <div className="wt-body">
-          <section>
-            <h3>{t('settings.theme')}</h3>
-            <ThemeChoice
-              value={prefs.theme}
-              onChange={(value) => setPrefs({ theme: value })}
-            />
-          </section>
-
-          {!phone && (
+          {step === 0 && (
             <>
-              <section>
-                <h3>{t('settings.accent')}</h3>
-                <AccentChoice
-                  value={prefs.accent}
-                  custom={prefs.accentCustom}
-                  onChange={(value) => setPrefs({ accent: value })}
-                  onCustom={(value) => setPrefs({ accent: 'custom', accentCustom: value })}
-                />
+              <section className="wt-appearance-row">
+                <div>
+                  <h3>{t('settings.density')}</h3>
+                  <DensityChoice value={prefs.density} onChange={(value) => setPrefs({ density: value })} />
+                </div>
+                <div>
+                  <h3>{t('settings.theme')}</h3>
+                  <ThemeChoice value={prefs.theme} onChange={(value) => setPrefs({ theme: value })} />
+                </div>
               </section>
-
-              <section>
-                <h3>{t('settings.density')}</h3>
-                <DensityChoice
-                  value={prefs.density}
-                  onChange={(value) => setPrefs({ density: value })}
-                />
-              </section>
+              {!phone && (
+                <section>
+                  <h3>{t('settings.accent')}</h3>
+                  <AccentChoice
+                    value={prefs.accent}
+                    custom={prefs.accentCustom}
+                    onChange={(value) => setPrefs({ accent: value })}
+                    onCustom={(value) => setPrefs({ accent: 'custom', accentCustom: value })}
+                  />
+                </section>
+              )}
             </>
           )}
 
-          {/* Said once, where the two that were dropped can be found. */}
-          {phone && <p className="wt-rest">{t('walkthrough.restInSettings')}</p>}
+          {step === 1 && (
+            <section className="wt-setup">
+              <div className="wt-week-layouts">
+                {(['unified', 'split'] as const).map((layout) => (
+                  <button
+                    key={layout}
+                    className={prefs.weekLayout === layout ? 'selected' : undefined}
+                    aria-pressed={prefs.weekLayout === layout}
+                    onClick={() => setPrefs({ weekLayout: layout })}
+                  >
+                    <span className={`wt-week-visual ${layout}`} aria-hidden="true"><i /><i /></span>
+                    <strong>{t(`walkthrough.weekLayout.${layout}`)}</strong>
+                  </button>
+                ))}
+              </div>
+              <button className={`wt-option${prefs.eisenhowerEnabled ? ' selected' : ''}`} onClick={() => setPrefs({ eisenhowerEnabled: !prefs.eisenhowerEnabled })}>
+                <Icon name="dashboard" />
+                <span><strong>{t('settings.eisenhower')}</strong><small>{t('settings.eisenhowerHint')}</small></span>
+                <span className="switch" role="switch" aria-checked={prefs.eisenhowerEnabled} />
+              </button>
+              <button className={`wt-option${prefs.showQuickGroup ? ' selected' : ''}`} onClick={() => setPrefs({ showQuickGroup: !prefs.showQuickGroup })}>
+                <Icon name="clock" />
+                <span><strong>{t('settings.showQuick')}</strong><small>{t('settings.showQuickHint')}</small></span>
+                <span className="switch" role="switch" aria-checked={prefs.showQuickGroup} />
+              </button>
+            </section>
+          )}
+
         </div>
 
         <div className="wt-foot">
-          <button className="btn primary" onClick={() => finish(true)}>
-            {t('walkthrough.done')}
+          <span>{t('walkthrough.step', { current: step + 1, total: 2 })}</span>
+          {step > 0 && <button className="btn" onClick={() => setStep((at) => at - 1)}>{t('review.back')}</button>}
+          <button className="btn primary" onClick={() => (step === 1 ? finish() : setStep(1))}>
+            {step === 1 ? t('walkthrough.finish') : t('tour.next')}
           </button>
         </div>
       </div>
