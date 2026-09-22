@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react';
-import { IconSprite } from './components/IconSprite';
 import { Icon } from './components/Icon';
 import { Sidebar } from './components/Sidebar';
 import { BulkBar } from './components/BulkBar';
@@ -110,26 +109,15 @@ export function App() {
 
 
   if (!ready) {
-    return (
-      <>
-        <IconSprite />
-        <div className="connect"><p className="empty">{t('common.loading')}</p></div>
-      </>
-    );
+    return <div className="connect"><p className="empty">{t('common.loading')}</p></div>;
   }
 
   if (!connected) {
-    return (
-      <>
-        <IconSprite />
-        <ConnectView />
-      </>
-    );
+    return <ConnectView />;
   }
 
   return (
     <>
-      <IconSprite />
       <ConfirmProvider>
         <DragProvider>
           <AppShell
