@@ -55,6 +55,8 @@ export function Walkthrough({
      shown round either. */
   const finish = () => {
     markOnboarded(user?.id);
+    // With the settings too, so the account's other browsers know.
+    if (!prefs.onboarded) setPrefs({ onboarded: true });
     setStep(0);
     onDone();
   };

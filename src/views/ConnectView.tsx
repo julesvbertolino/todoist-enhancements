@@ -3,7 +3,7 @@ import { Icon } from '@/components/Icon';
 import { useT } from '@/hooks/useT';
 import { useStore } from '@/store/store';
 import { looksLikeToken } from '@/api/auth';
-import { beginSignIn } from '@/api/oauth';
+import { beginSignIn, builtForElsewhere } from '@/api/oauth';
 import { AUTHOR, GITHUB_URL, TODOIST_DEVELOPER_URL, VERSION } from '@/app-info';
 
 
@@ -28,6 +28,8 @@ export function ConnectView() {
   const [token, setToken] = useState('');
   const [status, setStatus] = useState<'idle' | 'checking' | 'invalid' | 'malformed'>('idle');
   const [leaving, setLeaving] = useState(false);
+  /** The address this copy was built for, once a sign-in has been refused for it. */
+  const [elsewhere, setElsewhere] = useState<string | null>(null);
   // The token route opens by itself when it is what failed, or what the sign-in fell back to.
   const [tokenOpen, setTokenOpen] = useState(signInError === 'failed');
 
@@ -55,12 +57,25 @@ export function ConnectView() {
         <button
           className="btn primary lg connect-submit"
           disabled={leaving}
-          onClick={() => { setLeaving(true); void beginSignIn(); }}
+          onClick={() => {
+            const expected = builtForElsewhere();
+            if (expected) { setElsewhere(expected); setTokenOpen(true); return; }
+            setLeaving(true);
+            void beginSignIn();
+          }}
         >
           {leaving ? t('connect.oauthLeaving') : t('connect.oauth')}
         </button>
         {signInError === 'denied' && <p className="connect-error">{t('connect.oauthDenied')}</p>}
         {signInError === 'failed' && <p className="connect-error">{t('connect.oauthFailed')}</p>}
+        {elsewhere && (
+          <p className="connect-error">
+            {t('connect.oauthElsewhere', {
+              expected: elsewhere,
+              here: `${window.location.origin}${window.location.pathname}`,
+            })}
+          </p>
+        )}
 
         <button className="btn tint lg connect-demo" onClick={startDemo}>
           <Icon name="bars" size="sm" />

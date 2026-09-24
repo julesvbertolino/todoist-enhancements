@@ -15,3 +15,7 @@ REDDIT-*.md
 
 # Built by `npm run package`, for uploading.
 *.zip
+
+# Playwright
+test-results/
+playwright-report/

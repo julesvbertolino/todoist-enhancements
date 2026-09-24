@@ -4,7 +4,7 @@ import { Icon } from './Icon';
 import { DraggableTask } from './dnd/DraggableTask';
 import { Droppable } from './dnd/Droppable';
 import type { DropTarget, RowOrder } from '@/domain/dnd';
-import { RowListContext } from './dnd/RowList';
+import { GROUP_ATTR, RowListContext, groupAnswers } from './dnd/RowList';
 import { useT } from '@/hooks/useT';
 import { useStore } from '@/store/store';
 import { TaskRow } from './TaskRow';
@@ -70,6 +70,8 @@ export function TaskGroup({
 
   const body = (isOver: boolean) => (
     <section
+      ref={(node) => { if (node) groupAnswers.set(node, { list, target: dropTarget }); }}
+      {...{ [GROUP_ATTR]: '' }}
       className={`${className}${sectionId ? ' has-section-slots' : ''}${isOver ? ' dropping' : ''}`}
       /* The tour points at these by name rather than by class, so renaming a
          class cannot silently leave it highlighting the wrong thing. */

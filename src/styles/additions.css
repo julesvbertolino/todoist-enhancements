@@ -132,7 +132,9 @@
   font-weight:600;box-shadow:var(--sh-sm)}
 
 /* Toasts */
-.toasts{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);
+/* While the bulk-edit bar is up, the toasts stand just above it rather than
+   over its buttons. `--bulkbar-room` is set by the bar itself. */
+.toasts{position:fixed;left:50%;bottom:max(24px, calc(var(--bulkbar-room, 0px) + 10px));transform:translateX(-50%);
   z-index:200;display:grid;gap:8px;width:max-content;max-width:min(520px,92vw)}
 /* The stack owns the placement now, so every property the older single-toast
    rule still sets has to be handed back — including the opacity:0 and the
@@ -154,7 +156,8 @@
 .toast button{color:var(--surface);font-weight:600;font-size:var(--fs-12);text-decoration:underline}
 /* A phone puts the navigation bar where the toast was going to sit. */
 @media (max-width:720px){
-  .toasts{bottom:calc(76px + env(safe-area-inset-bottom));width:auto;left:var(--s3);right:var(--s3);transform:none}
+  .toasts{bottom:max(calc(76px + env(safe-area-inset-bottom)), calc(var(--bulkbar-room, 0px) + 10px));
+    width:auto;left:var(--s3);right:var(--s3);transform:none}
 }
 
 /* Empty states */
@@ -662,6 +665,14 @@
 .bulkpop .opt > span{display:inline-flex;align-items:center;gap:8px;min-width:0}
 .bulkpop .opt .hash{flex:0 0 auto}
 .bulkpop-list .opt{width:100%;min-width:0;overflow:hidden}
+/* The choice the keyboard is on, drawn as a fill rather than the usual ring:
+   the list scrolls, and a ring around its first item was cut off by the top
+   of the list. The same wash the row's own Move menu uses. */
+.bulkpop .opt:focus-visible,
+.bulkpop .checkrow:has(input:focus-visible){
+  outline:none;background:var(--accent-soft);color:var(--accent-dark);
+}
+.bulkpop .checkrow input:focus-visible{outline:none}
 .bulkdest{width:100%;overflow:hidden}
 .bulkdest-label{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .bulkpop .opt.sectionopt{padding-left:22px;color:var(--muted)}

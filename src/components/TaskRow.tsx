@@ -2,6 +2,11 @@ import { useDraggable } from '@dnd-kit/core';
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from './Icon';
 import { useRowTarget } from './dnd/useRowTarget';
+import {
+  GROUP_ATTR, TASK_DROP_EVENT, TASK_PLACE_EVENT, groupAnswers, useRowList,
+  type TaskDropRequest, type TaskPlaceRequest,
+} from './dnd/RowList';
+import { ROW_MOVE_EVENT, type RowMove } from '@/hooks/useKeyboard';
 import { TaskActions } from './TaskActions';
 import { useT } from '@/hooks/useT';
 import { usePhoneBehaviour } from '@/hooks/useTouchLayout';
@@ -62,6 +67,75 @@ export function TaskRow({
   dragRef, lifted = false,
 }: TaskRowProps) {
   const { setRowRef, nestOver, landing } = useRowTarget(item.id, { nestable });
+  const list = useRowList();
+  const rowEl = useRef<HTMLDivElement | null>(null);
+
+  /* ⌘↑ / ⌘↓ from the keyboard: this task takes the place of the one above or
+     below it — among the list's tasks, or among its parent's subtasks — the
+     same place a drop onto that neighbour would give it. At the edge of its
+     group it goes on into the next group down (or up) that takes a drop, first
+     in it going down and last going up, doing what a drop there does: another
+     section, Quick, Anytime this week. A group that takes no drop (Behind
+     schedule, the timed tasks) is passed over, as a drag passes over it, and
+     where there is nothing left the task stays. A subtask stays with its
+     parent, and a board's columns are side by side, not one after another. */
+  useEffect(() => {
+    const node = rowEl.current;
+    if (!node) return;
+    const onMove = (event: Event) => {
+      if (!list) return;
+      const move = (event as CustomEvent<RowMove>).detail;
+      const siblings = item.parent_id
+        ? childrenOf(item.parent_id).filter((task) => !task.checked).map((task) => task.id)
+        : list.ids;
+      if (move === 'top' || move === 'bottom') {
+        // To an end of its own group: the first or the last place in it.
+        const end = move === 'top' ? siblings[0] : siblings[siblings.length - 1];
+        if (!end || end === item.id) return;
+        const request: TaskPlaceRequest = {
+          itemId: item.id, ontoId: end, list, subtask: Boolean(item.parent_id),
+        };
+        window.dispatchEvent(new CustomEvent(TASK_PLACE_EVENT, { detail: request }));
+        return;
+      }
+      const step = move;
+      const onto = siblings[siblings.indexOf(item.id) + step];
+      if (onto) {
+        const request: TaskPlaceRequest = {
+          itemId: item.id, ontoId: onto, list, subtask: Boolean(item.parent_id),
+        };
+        window.dispatchEvent(new CustomEvent(TASK_PLACE_EVENT, { detail: request }));
+        return;
+      }
+
+      if (item.parent_id || node.closest('.board')) return;
+      const own = node.closest(`[${GROUP_ATTR}]`);
+      if (!own) return;
+      const groups = [...(node.closest('.screen') ?? document).querySelectorAll(`[${GROUP_ATTR}]`)];
+      for (let at = groups.indexOf(own) + step; at >= 0 && at < groups.length; at += step) {
+        const answer = groupAnswers.get(groups[at]);
+        const target = answer?.list?.target ?? answer?.target;
+        if (!answer || !target) continue;
+        const ids = answer.list?.ids ?? [];
+        if (answer.list && ids.length > 0) {
+          const request: TaskPlaceRequest = {
+            itemId: item.id,
+            ontoId: step > 0 ? ids[0] : ids[ids.length - 1],
+            list: answer.list,
+            subtask: false,
+            after: step < 0,
+          };
+          window.dispatchEvent(new CustomEvent(TASK_PLACE_EVENT, { detail: request }));
+        } else {
+          const request: TaskDropRequest = { itemId: item.id, target };
+          window.dispatchEvent(new CustomEvent(TASK_DROP_EVENT, { detail: request }));
+        }
+        return;
+      }
+    };
+    node.addEventListener(ROW_MOVE_EVENT, onMove);
+    return () => node.removeEventListener(ROW_MOVE_EVENT, onMove);
+  }, [item.id, item.parent_id, list, childrenOf]);
   const { t, locale } = useT();
   const snapshot = useStore((s) => s.snapshot);
   const hour12 = useStore((s) => s.prefs.hour12);
@@ -148,7 +222,7 @@ export function TaskRow({
   return (
     <>
       <div
-        ref={(node) => { setRowRef(node); dragRef?.(node); }}
+        ref={(node) => { rowEl.current = node; setRowRef(node); dragRef?.(node); }}
         className={`task${item.checked || settling ? ' done' : ''}${settling ? ' settling' : ''}${picked ? ' picked' : ''}${nestOver ? ' nesttarget' : ''}${landing ? ' landing' : ''}${lifted ? ' dragging' : ''}${gesture.className}`}
         role="button"
         tabIndex={0}

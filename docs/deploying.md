@@ -24,7 +24,10 @@ The second should say `application/manifest+json`. It comes from `.htaccess`,
 which ships in `dist/` — a dotfile, so a client set to hide them will skip it.
 
 The third is what "Continue with Todoist" depends on: Todoist fetches that
-file to identify the app. If it answers with the app's own page instead, the
+file to identify the app. The build writes it for `PUBLIC_URL`, the official
+site by default; a copy hosted anywhere else must be built with
+`PUBLIC_URL=https://<host>/ npm run build` (see "Self-hosting" in the README),
+and the file's `client_id` should then start with that address. If it answers with the app's own page instead, the
 `oauth/` folder was not uploaded and Todoist replies `invalid_client`. The
 fourth checks that `.htaccess` is in place; without it the app still works,
 without its Content-Security-Policy.

@@ -9,6 +9,7 @@ import { usePhoneBehaviour } from '@/hooks/useTouchLayout';
    a finger held on the row it is under. Both ask this component to open one of
    its menus, and both say which by name. */
 import { ROW_MENU_EVENT } from '@/hooks/useKeyboard';
+import { copyText, isTemporaryId, todoistTaskUrl } from '@/api/links';
 import { ROW_PRESS_EVENT, type RowMenu } from '@/domain/gestures';
 import { useStore } from '@/store/store';
 import { useConfirm } from './overlays/Confirm';
@@ -66,39 +67,95 @@ const ROWMENU_OFFSET_PX = 32;
  * The menu changes height while it is open — the schedule field grows a list
  * of suggestions under it as you type — so it is measured again whenever it
  * resizes rather than only when it appears.
+ *
+ * The room is the room you can see, not the window's. A board scrolls
+ * sideways, and a box that scrolls on one axis clips on both, so a menu
+ * hanging below the last card of a short board was cut off by the board while
+ * the window had plenty of space under it. The nearest box that clips is
+ * measured along with the window, and when neither side has room for the
+ * whole menu it opens on the roomier one and scrolls inside itself, so every
+ * line of it can be reached without scrolling the board. The same box cut the
+ * menus of a first column off on the left, so they are slid back inside it.
+ *
+ * It is keyed on which menu is open rather than whether one is: going from
+ * the "⋯" menu to Schedule or Move keeps a menu open, and the placement and
+ * the size being watched were the "⋯" menu's.
  */
-function useMenuPlacement(open: boolean) {
+function useMenuPlacement(menu: string) {
   const ref = useRef<HTMLDivElement | null>(null);
   const [up, setUp] = useState(false);
 
   useLayoutEffect(() => {
-    if (!open) { setUp(false); return; }
-    const menu = ref.current;
-    const anchor = menu?.parentElement;
-    if (!menu || !anchor) return;
+    if (menu === 'none') { setUp(false); return; }
+    const node = ref.current;
+    const anchor = node?.parentElement;
+    if (!node || !anchor) return;
+    const menuBox: HTMLDivElement = node;
+    const clip = clippingAncestor(anchor);
 
     const place = () => {
-      const box = anchor.getBoundingClientRect();
-      const height = menu.offsetHeight;
       const margin = 8;
-      const fitsBelow = box.top + ROWMENU_OFFSET_PX + height <= window.innerHeight - margin;
-      const fitsAbove = box.bottom - ROWMENU_OFFSET_PX - height >= margin;
+      const area = clip?.getBoundingClientRect();
+      const limitTop = Math.max(margin, area ? area.top : 0);
+      const limitBottom = Math.min(window.innerHeight - margin, area ? area.bottom : Infinity);
+      const box = anchor.getBoundingClientRect();
+      menuBox.style.maxHeight = '';
+      menuBox.style.right = '';
+      const height = menuBox.offsetHeight;
+
+      /* Sideways too: a menu hangs leftwards from the buttons at the right of
+         the row, and in a board's first column that is past the board's left
+         edge. Slid back inside, never further than the box that clips it. */
+      const limitLeft = Math.max(margin, area ? area.left : 0);
+      const limitRight = Math.min(window.innerWidth - margin, area ? area.right : Infinity);
+      const across = menuBox.getBoundingClientRect();
+      const shift = across.left < limitLeft
+        ? Math.min(limitLeft - across.left, Math.max(0, limitRight - across.right))
+        : across.right > limitRight ? limitRight - across.right : 0;
+      if (shift !== 0) menuBox.style.right = `${-shift}px`;
+      const roomBelow = limitBottom - (box.top + ROWMENU_OFFSET_PX);
+      const roomAbove = (box.bottom - ROWMENU_OFFSET_PX) - limitTop;
+      const fitsBelow = height <= roomBelow;
+      const fitsAbove = height <= roomAbove;
       // Below by default: a menu only moves when it has to, and only when the
       // other side is genuinely better.
-      setUp(!fitsBelow && fitsAbove);
+      const goUp = fitsBelow ? false : fitsAbove ? true : roomAbove > roomBelow;
+      setUp(goUp);
+      if (!fitsBelow && !fitsAbove) {
+        menuBox.style.maxHeight = `${Math.max(120, Math.floor(goUp ? roomAbove : roomBelow))}px`;
+        menuBox.style.overflowY = 'auto';
+      } else {
+        menuBox.style.overflowY = '';
+      }
     };
 
     place();
     const observer = new ResizeObserver(place);
-    observer.observe(menu);
+    observer.observe(menuBox);
+    /* A capped menu keeps its size while what is inside it grows, and it is
+       what is inside that decides whether it still fits. */
+    const changed = new MutationObserver(place);
+    changed.observe(menuBox, { childList: true, subtree: true });
     window.addEventListener('resize', place);
+    clip?.addEventListener('scroll', place, { passive: true });
     return () => {
       observer.disconnect();
+      changed.disconnect();
       window.removeEventListener('resize', place);
+      clip?.removeEventListener('scroll', place);
     };
-  }, [open]);
+  }, [menu]);
 
   return { ref, className: up ? ' up' : '' };
+}
+
+/** The nearest box above `node` that cuts off what overflows it, if any. */
+function clippingAncestor(node: HTMLElement): HTMLElement | null {
+  for (let at = node.parentElement; at && at !== document.body; at = at.parentElement) {
+    const style = getComputedStyle(at);
+    if (style.overflowX !== 'visible' || style.overflowY !== 'visible') return at;
+  }
+  return null;
 }
 
 /**
@@ -133,6 +190,7 @@ export function TaskActions({ item, childrenOf, onOpen }: TaskActionsProps) {
   const apply = useStore((s) => s.apply);
   const setRecurrence = useStore((s) => s.setRecurrence);
   const toast = useStore((s) => s.toast);
+  const demo = useStore((s) => s.demo);
   const dateFormat = useStore((s) => s.prefs.dateFormat);
   const [menu, setMenu] = useState<'none' | 'schedule' | 'more' | 'estimate' | 'move'>('none');
   /** What has been typed into the schedule field, before it is a date. */
@@ -154,7 +212,7 @@ export function TaskActions({ item, childrenOf, onOpen }: TaskActionsProps) {
   const phone = usePhoneBehaviour();
   /* Only where a menu hangs off its row. On a phone it is a sheet along the
      bottom edge, placed by the stylesheet, with nothing to flip. */
-  const placement = useMenuPlacement(!phone && menu !== 'none' && menu !== 'estimate');
+  const placement = useMenuPlacement(phone || menu === 'estimate' ? 'none' : menu);
 
   // A menu that opens holding the last thing typed into it is a menu lying
   // about what it will do if you press Enter.
@@ -727,11 +785,23 @@ export function TaskActions({ item, childrenOf, onOpen }: TaskActionsProps) {
               className="opt"
               onClick={() => {
                 setMenu('none');
-                window.open(`https://app.todoist.com/app/task/${item.id}`, '_blank', 'noopener');
+                window.open(todoistTaskUrl(item.id), '_blank', 'noopener');
               }}
             >
               <span><Icon name="external" size="sm" /> {t('task.openInTodoist')}</span>
             </button>
+            {!demo && !isTemporaryId(item.id) && (
+              <button
+                className="opt"
+                onClick={() => {
+                  setMenu('none');
+                  void copyText(todoistTaskUrl(item.id))
+                    .then((ok) => toast(t(ok ? 'task.linkCopied' : 'task.linkNotCopied')));
+                }}
+              >
+                <span><Icon name="link" size="sm" /> {t('task.copyLink')}</span>
+              </button>
+            )}
             <hr />
             <button
               className="opt danger"

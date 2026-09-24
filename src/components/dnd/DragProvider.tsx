@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   DndContext, DragOverlay, PointerSensor, pointerWithin, useSensor, useSensors,
   type CollisionDetection, type DragEndEvent, type DragMoveEvent, type DragStartEvent,
@@ -23,7 +23,9 @@ import { updateItem, moveItem, reorderItems, updateDayOrders } from '@/api/comma
 import type { Item } from '@/domain/types';
 import { markerStyle } from '@/domain/colors';
 import { Icon } from '@/components/Icon';
-import type { RowList } from './RowList';
+import {
+  type RowList, TASK_DROP_EVENT, TASK_PLACE_EVENT, type TaskDropRequest, type TaskPlaceRequest,
+} from './RowList';
 import { usePhoneBehaviour } from '@/hooks/useTouchLayout';
 import { PRESS_HOLD_EVENT, projectRowAttr } from './ProjectRowSortable';
 import { byChildOrder, bySectionOrder, keyBetween, keysInOrder } from '@/domain/orderKey';
@@ -623,6 +625,15 @@ export function DragProvider({ children }: { children: ReactNode }) {
       }
     }
 
+    await dropOnto(item, target);
+  }
+
+  /**
+   * A task dropped on a place rather than onto a row: the mutation the drop
+   * table defines for that place, and an undo. Also where ⌘↑ / ⌘↓ land a task
+   * in an empty section (TASK_DROP_EVENT).
+   */
+  async function dropOnto(item: Item, target: DropTarget) {
     const mutation = dropMutation(item, target);
     if (!mutation) return;
 
@@ -674,13 +685,14 @@ export function DragProvider({ children }: { children: ReactNode }) {
    * both things at once — this day, and here in it — so what the group would
    * have done to a task dropped on it plainly is done first.
    */
-  async function orderInList(item: Item, row: Item, list: RowList) {
+  async function orderInList(item: Item, row: Item, list: RowList, landAfter = false) {
     const ids = [...list.ids];
     const onto = ids.indexOf(row.id);
     if (onto < 0) return;
     const at = ids.indexOf(item.id);
     if (at >= 0) ids.splice(onto, 0, ...ids.splice(at, 1));
-    else ids.splice(onto, 0, item.id);
+    // A task from another list goes in before the row, or after it when asked.
+    else ids.splice(onto + (landAfter ? 1 : 0), 0, item.id);
 
     const before = Object.fromEntries(
       ids.filter((id) => snapshot.items[id]).map((id) => [id, snapshot.items[id].day_order]),
@@ -735,7 +747,7 @@ export function DragProvider({ children }: { children: ReactNode }) {
    * joins that container first, in the same batch — otherwise Todoist would
    * renumber it among tasks it does not live with.
    */
-  async function reorderTask(item: Item, row: Item, list: RowList) {
+  async function reorderTask(item: Item, row: Item, list: RowList, landAfter = false) {
     const container = {
       project_id: row.project_id,
       section_id: row.section_id,
@@ -765,7 +777,7 @@ export function DragProvider({ children }: { children: ReactNode }) {
     const next = [...arranged];
     const at = next.indexOf(item.id);
     if (at >= 0) next.splice(onto, 0, ...next.splice(at, 1));
-    else next.splice(onto, 0, item.id);
+    else next.splice(onto + (landAfter ? 1 : 0), 0, item.id);
 
     const move = container.parent_id
       ? moveItem(item.id, { parent_id: container.parent_id })
@@ -929,6 +941,39 @@ export function DragProvider({ children }: { children: ReactNode }) {
   const draggingTagName = draggingId?.startsWith(TAG_DRAG_PREFIX)
     ? draggingId.slice(TAG_DRAG_PREFIX.length)
     : null;
+
+  /* The keys' way to the same place a drop reaches (see TASK_PLACE_EVENT).
+     Read through a ref: the functions above close over this render's
+     snapshot, and the listener is registered once. */
+  const placeFromKeys = useRef<(request: TaskPlaceRequest) => void>(() => {});
+  placeFromKeys.current = ({ itemId, ontoId, list, subtask, after = false }) => {
+    const item = snapshot.items[itemId];
+    const row = snapshot.items[ontoId];
+    if (!item || !row) return;
+    if (subtask) { void reorderTask(item, row, list); return; }
+    if (list.viewKey) setViewPrefs(list.viewKey, { sort: 'manual' });
+    if (list.order === 'day') void orderInList(item, row, list, after);
+    else void reorderTask(item, row, list, after);
+  };
+  const dropFromKeys = useRef<(request: TaskDropRequest) => void>(() => {});
+  dropFromKeys.current = ({ itemId, target }) => {
+    const item = snapshot.items[itemId];
+    if (item) void dropOnto(item, target);
+  };
+  useEffect(() => {
+    const onPlace = (event: Event) => {
+      placeFromKeys.current((event as CustomEvent<TaskPlaceRequest>).detail);
+    };
+    const onDrop = (event: Event) => {
+      dropFromKeys.current((event as CustomEvent<TaskDropRequest>).detail);
+    };
+    window.addEventListener(TASK_PLACE_EVENT, onPlace);
+    window.addEventListener(TASK_DROP_EVENT, onDrop);
+    return () => {
+      window.removeEventListener(TASK_PLACE_EVENT, onPlace);
+      window.removeEventListener(TASK_DROP_EVENT, onDrop);
+    };
+  }, []);
 
   return (
     <DndContext

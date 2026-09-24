@@ -229,7 +229,29 @@ be installed. No UI or CSS framework.
 npm install
 npm run dev      # Node 20+, pinned in .nvmrc
 npm run build    # a static site in dist/, see docs/deploying.md
+npm test         # unit tests on the rules (Vitest)
+npm run e2e      # demo journeys in a browser (Playwright); add --headed to watch
 ```
+
+The journeys need Playwright's Chromium: `npx playwright install chromium`
+once on a new machine. GitHub runs the typecheck, the unit tests and a build
+on every push, and the journeys on every pull request.
+
+### Self-hosting
+
+"Continue with Todoist" identifies the app by a file it hosts,
+`oauth/client.json`, and Todoist only sends people back to the address that
+file names. The build writes it for the official site unless told otherwise,
+so a copy on your own domain has to be built for that domain:
+
+```bash
+PUBLIC_URL=https://your.domain/ npm run build   # include the subfolder, if any
+```
+
+The file must be reachable over HTTPS at `https://your.domain/oauth/client.json`,
+since Todoist fetches it. A copy built for another address says so on its
+sign-in screen instead of sending you to Todoist's "Invalid redirect URI".
+Signing in with an API token works anywhere, with none of this.
 
 I built this for myself, so it is shaped around one person's habits — that is
 the main thing it needs help with. If you have an idea, open an issue and say

@@ -299,6 +299,12 @@ export interface Preferences {
   eisenhowerIncludeSomeday: boolean;
   /** Narrows the matrix to one workspace's projects; null is every workspace. */
   eisenhowerWorkspace: string | null;
+  /**
+   * The account has been through the first run (walkthrough finished or
+   * skipped). Kept with the settings so a second browser does not ask again;
+   * the device also remembers it on its own (domain/onboarding.ts).
+   */
+  onboarded: boolean;
 }
 
 export const defaultPreferences = (locale: Locale): Preferences => ({
@@ -329,6 +335,7 @@ export const defaultPreferences = (locale: Locale): Preferences => ({
   eisenhowerShowFuture: false,
   eisenhowerIncludeSomeday: false,
   eisenhowerWorkspace: null,
+  onboarded: false,
 });
 
 /**
@@ -388,6 +395,7 @@ export function hydratePreferences(stored: unknown, locale: Locale): Preferences
     eisenhowerShowFuture: s.eisenhowerShowFuture === true,
     eisenhowerIncludeSomeday: s.eisenhowerIncludeSomeday === true,
     eisenhowerWorkspace: typeof s.eisenhowerWorkspace === 'string' ? s.eisenhowerWorkspace : null,
+    onboarded: s.onboarded === true,
     views: s.views ?? {},
   };
 }

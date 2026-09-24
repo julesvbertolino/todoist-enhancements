@@ -7,6 +7,8 @@ import { useConfirm } from './overlays/Confirm';
 import { navigate } from '@/hooks/useRoute';
 import { usePhoneBehaviour } from '@/hooks/useTouchLayout';
 import type { Project } from '@/domain/types';
+import { copyPending, isTemporaryId, projectEmail } from '@/api/links';
+import { ApiError } from '@/api/client';
 
 export interface ProjectMenuProps {
   project: Project;
@@ -43,6 +45,8 @@ export function ProjectMenu({
   const deleteProject = useStore((s) => s.deleteProject);
   const duplicateProject = useStore((s) => s.duplicateProject);
   const nestProject = useStore((s) => s.nestProject);
+  const demo = useStore((s) => s.demo);
+  const toast = useStore((s) => s.toast);
   const ref = useRef<HTMLDivElement>(null);
   const phone = usePhoneBehaviour();
 
@@ -180,6 +184,36 @@ export function ProjectMenu({
       >
         <Icon name="stack" size="sm" /><span>{t('project.duplicate')}</span>
       </button>
+      {/* Todoist's "email tasks to this project": anything sent to the
+          address lands here as a task. Not in the demo, whose projects do not
+          exist at Todoist, nor for a project that has not synced yet. */}
+      {!demo && !isTemporaryId(project.id) && (
+        <button
+          className="opt"
+          role="menuitem"
+          onClick={() => {
+            onClose();
+            const address = projectEmail(project.id);
+            void copyPending(address).then(async (ok) => {
+              if (ok) { toast(t('project.emailCopied', { name: project.name })); return; }
+              /* Todoist's own words when it refused, so a missing permission
+                 or a plan limit can be told from a fault here. */
+              const reason = await address.then(
+                () => '',
+                (error: unknown) => {
+                  console.error('Project email refused', error);
+                  return error instanceof ApiError ? `${error.status} · ${error.detail}` : String(error);
+                },
+              );
+              toast(reason
+                ? t('project.emailRefused', { reason })
+                : t('project.emailNotCopied'));
+            });
+          }}
+        >
+          <Icon name="mail" size="sm" /><span>{t('project.copyEmail')}</span>
+        </button>
+      )}
       {/* The gesture that nests a project is a drag to the right; getting one
           back out is the thing a gesture is bad at, so it is also a command. */}
       {project.parent_id && (

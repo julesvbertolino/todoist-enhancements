@@ -28,3 +28,42 @@ export interface RowList {
 export const RowListContext = createContext<RowList | null>(null);
 
 export const useRowList = (): RowList | null => useContext(RowListContext);
+
+/**
+ * A task asked, from the keyboard, to take a neighbour's place in its list.
+ *
+ * The drag provider owns how a place is written — one project's numbering or
+ * a list's day order, a sorted view giving way to a hand-made order — so the
+ * keys ask it the same thing a drop onto that neighbour would, rather than
+ * keeping a second copy of the rules.
+ */
+export const TASK_PLACE_EVENT = 'enhanced:taskplace';
+export interface TaskPlaceRequest {
+  itemId: string;
+  /** The neighbour whose place it takes. */
+  ontoId: string;
+  list: RowList;
+  /** A subtask moves among its own siblings, by its parent's numbering. */
+  subtask: boolean;
+  /** Coming from another list: land after the neighbour rather than before. */
+  after?: boolean;
+}
+
+/** From the keyboard: the task goes to a place with no row to aim at (an empty section). */
+export const TASK_DROP_EVENT = 'enhanced:taskdrop';
+export interface TaskDropRequest {
+  itemId: string;
+  target: DropTarget;
+}
+
+/**
+ * What each group on the page takes, found from its element: ⌘↑ / ⌘↓ at the
+ * edge of a group step into the next group that takes a drop, and the
+ * keyboard only has the page to go by.
+ */
+export interface GroupAnswer {
+  list: RowList | null;
+  target?: DropTarget;
+}
+export const groupAnswers = new WeakMap<Element, GroupAnswer>();
+export const GROUP_ATTR = 'data-row-group';

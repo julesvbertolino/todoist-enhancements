@@ -3,7 +3,7 @@ import {
   ArrowLeft, ArrowRight, ArrowUpDown, BarChart3, Bell, Calendar, CalendarClock,
   CalendarDays, Check, ChevronDown, ChevronUp, Clock, Coffee, CornerDownRight,
   ExternalLink, Filter, Flag, Folder, GripVertical, Group, Inbox,
-  Kanban, Layers, LayoutDashboard, Lightbulb, List, LogOut, Menu,
+  Kanban, Layers, LayoutDashboard, Lightbulb, Link, List, LogOut, Mail, Menu,
   MessageSquare, MoreHorizontal, PanelLeft, PanelTop, Pencil, Plus, Repeat,
   Search, Settings, SlidersHorizontal, Star, Tag, Target, TrendingUp,
   TriangleAlert, Upload, X, ListChecks,
@@ -15,7 +15,7 @@ export type IconName =
   | 'arrow-left' | 'arrow-right' | 'bars' | 'bell' | 'board' | 'calendar'
   | 'caret' | 'caret-up' | 'check' | 'clock' | 'close' | 'coffee' | 'comment'
   | 'dashboard' | 'deadline' | 'drag' | 'edit' | 'export' | 'external'
-  | 'filter' | 'flag' | 'group' | 'inbox' | 'list' | 'logout' | 'menu' | 'more'
+  | 'filter' | 'flag' | 'group' | 'inbox' | 'link' | 'list' | 'logout' | 'mail' | 'menu' | 'more'
   | 'plus' | 'project' | 'repeat' | 'search' | 'settings' | 'sidebar'
   | 'section' | 'sliders' | 'someday' | 'sort' | 'stack' | 'star' | 'subtask'
   | 'tag' | 'tasks'
@@ -42,6 +42,8 @@ const ICONS: Record<IconName, LucideIcon> = {
   edit: Pencil,
   export: Upload,
   external: ExternalLink,
+  link: Link,
+  mail: Mail,
   filter: Filter,
   flag: Flag,
   group: Group,

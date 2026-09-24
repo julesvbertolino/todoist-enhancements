@@ -4,6 +4,9 @@ import { useConfirm } from '@/components/overlays/Confirm';
 import { useT } from './useT';
 import { navigate } from './useRoute';
 import type { ViewId } from '@/domain/types';
+import { addDays, startOfDay } from 'date-fns';
+import { dropMutation } from '@/domain/dnd';
+import { dueDate, formatDayOrName } from '@/domain/dates';
 
 /**
  * The whole of the keyboard, in one place.
@@ -22,6 +25,12 @@ import type { ViewId } from '@/domain/types';
  * being told to, and Escape out of the task panel lands back on the row it was
  * opened from — the dialog shell already returns focus to wherever it came
  * from, which is the behaviour the issue asked for, unwritten.
+ *
+ * The mouse pointer is not the cursor. Hovering a task and pressing a key
+ * was tried (#90) and left out on purpose: with the pointer resting on a
+ * list, typing a search that starts with `e` completed whatever task was
+ * under it. Arrows, J/K, Tab or a task opened and closed again put the cursor
+ * on a row; the pointer never does.
  *
  * The cursor is not carried between pages. Restoring one on arrival would mean
  * taking focus on every navigation, which fights anyone tabbing through the
@@ -104,6 +113,12 @@ function land(row: HTMLElement | undefined) {
   row.scrollIntoView({ block: 'nearest' });
 }
 
+/** Whether the focus has fallen to nothing, rather than been put somewhere. */
+const focusLost = (): boolean => !document.activeElement || document.activeElement === document.body;
+
+const rowById = (id: string): HTMLElement | undefined =>
+  rows().find((row) => row.dataset.taskId === id);
+
 /**
  * What the keyboard asks a row to do that only the row can do.
  *
@@ -113,6 +128,17 @@ function land(row: HTMLElement | undefined) {
  */
 export type RowMenu = 'schedule' | 'move' | 'more';
 export const ROW_MENU_EVENT = 'enhanced:rowmenu';
+/** ⌘↑ / ⌘↓: the row is asked to move one place up (-1) or down (1); with ⌥, to an end. */
+export const ROW_MOVE_EVENT = 'enhanced:rowmove';
+export type RowMove = 1 | -1 | 'top' | 'bottom';
+
+/**
+ * The same keys on a selection open the bulk bar's panels instead: T its Date,
+ * V its Move. The bar is the one place a selection is dated or moved, so the
+ * keyboard asks it rather than keeping a second copy of either panel.
+ */
+export type BulkMenuName = 'date' | 'move';
+export const BULK_MENU_EVENT = 'enhanced:bulkmenu';
 
 interface KeyboardBridge {
   openTask: (id: string) => void;
@@ -136,6 +162,46 @@ export function useKeyboard(bridge: KeyboardBridge) {
   useEffect(() => {
     /** Where the cursor was, so a row that finishes hands the place on. */
     let lastIndex = 0;
+    /**
+     * The task the cursor is on, remembered apart from the focus.
+     *
+     * A change that re-sorts the list (a priority) moves the row, and a row
+     * the browser moves drops the focus on the way: the next key, meant for
+     * the same task, opened the search. The cursor is only put down on
+     * purpose — a click somewhere, Escape, the focus going to a field — so a
+     * focus that merely fell to nothing still means this task.
+     */
+    let remembered: string | null = null;
+    /**
+     * A Shift+arrow range: the task it started from, and what was selected
+     * before it (Cmd+click picks), which it adds to rather than replaces.
+     * Any other key, or a click, ends it.
+     */
+    let range: { from: string; base: string[] } | null = null;
+    const onFocusIn = (event: FocusEvent) => {
+      const target = event.target as Element | null;
+      // A bulk panel opened from the keys is still about the same tasks.
+      if (target instanceof Element && target.closest('.bulkpop')) return;
+      remembered = rowOf(target)?.dataset.taskId ?? null;
+    };
+    const onPointerDown = () => { remembered = null; range = null; };
+    /** The row the keys are for: the focused one, or the one the focus fell from. */
+    const cursorRow = (): HTMLElement | null => {
+      const focused = rowOf(document.activeElement);
+      if (focused || !remembered || !focusLost()) return focused;
+      const row = rowById(remembered) ?? null;
+      if (row) row.focus({ preventScroll: true });
+      return row;
+    };
+    /* Puts the highlight back as soon as the moved row is drawn, so the cursor
+       is seen where the keys will act; the keys themselves do not wait for it. */
+    const keepCursor = (id: string) => {
+      for (const delay of [0, 120, 400]) {
+        window.setTimeout(() => {
+          if (focusLost() && remembered === id) land(rowById(id));
+        }, delay);
+      }
+    };
     /** `g` has been pressed and the app is waiting to hear where to go. */
     let goingTo = false;
     let goingTimer: ReturnType<typeof setTimeout> | undefined;
@@ -149,6 +215,9 @@ export function useKeyboard(bridge: KeyboardBridge) {
     };
 
     const onKey = (e: KeyboardEvent) => {
+      const extending = e.shiftKey && !e.metaKey && !e.ctrlKey
+        && (e.key === 'ArrowDown' || e.key === 'ArrowUp');
+      if (!extending && e.key !== 'Shift') range = null;
       const target = e.target as HTMLElement | null;
       const typing =
         target?.tagName === 'INPUT'
@@ -157,6 +226,13 @@ export function useKeyboard(bridge: KeyboardBridge) {
 
       const store = useStore.getState();
       const { bridge: to, confirm: ask_, t: say } = live.current;
+
+      // ⌘/ shows or hides the sidebar, as in Things; wherever the focus is.
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && (e.key === '/' || e.code === 'Slash')) {
+        e.preventDefault();
+        store.setPrefs({ sidebarCollapsed: !store.prefs.sidebarCollapsed });
+        return;
+      }
 
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
@@ -180,9 +256,27 @@ export function useKeyboard(bridge: KeyboardBridge) {
       /* A dialog or a row menu in front owns the keyboard. Each closes on
          Escape by itself, and nothing behind one should answer a letter typed
          into it. */
-      if (document.querySelector('.overlay.open, .rowmenu')) return;
+      if (document.querySelector('.overlay.open, .rowmenu, .bulkpop')) return;
 
-      const current = rowOf(document.activeElement);
+      /* Select all means the tasks, not the page's text: nobody selects the
+         words of a task list to do something with them, and everybody picks
+         a whole list to move or date it at once. Only the rows on the page in
+         front — never another page's, never a collapsed group's — and not the
+         ticked ones, which no bulk action is for. Pressing it again keeps the
+         lot, as it does in every list that has it. Inside a field it is that
+         field's own, which `typing` has already let through. */
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'a') {
+        e.preventDefault();
+        const ids = [...new Set(rows().map((row) => row.dataset.taskId ?? ''))]
+          .filter((id) => {
+            const item = store.snapshot.items[id];
+            return item !== undefined && !item.checked;
+          });
+        if (ids.length > 0) store.selectRange(ids, false);
+        return;
+      }
+
+      const current = cursorRow();
 
       if (e.key === 'Escape') {
         /* Escape gives back the outermost thing that can be given back: the
@@ -194,7 +288,26 @@ export function useKeyboard(bridge: KeyboardBridge) {
           store.clearSelection();
           return;
         }
-        if (current) { e.preventDefault(); current.blur(); }
+        if (current) { e.preventDefault(); remembered = null; current.blur(); }
+        return;
+      }
+
+      /* ⌘↑ and ⌘↓ move the task itself, as in Things: one place up or down
+         in its list, the cursor going with it. With no task under the
+         cursor the keys are the browser's own (the top or the end of the
+         page). */
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey
+        && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+        if (!current) return;
+        e.preventDefault();
+        const id = current.dataset.taskId ?? '';
+        /* With ⌥, straight to the top or the bottom of its own group — the
+           ends of the list it is in, not the next section. */
+        const detail: RowMove = e.altKey
+          ? (e.key === 'ArrowDown' ? 'bottom' : 'top')
+          : (e.key === 'ArrowDown' ? 1 : -1);
+        current.dispatchEvent(new CustomEvent(ROW_MOVE_EVENT, { detail }));
+        keepCursor(id);
         return;
       }
 
@@ -208,12 +321,36 @@ export function useKeyboard(bridge: KeyboardBridge) {
         if (list.length === 0) return;
         e.preventDefault();
         const at = current ? list.indexOf(current) : -1;
-        // With no cursor yet, Down starts at the top and Up at the bottom.
-        const next = at < 0
-          ? (step > 0 ? 0 : list.length - 1)
-          : Math.min(list.length - 1, Math.max(0, at + step));
+        /* With no cursor yet, Down starts at the top and Up at the bottom.
+           With ⌥ it goes straight to the first or the last task, as in
+           Things — and with ⌥⇧ the selection goes there with it. */
+        const toEnd = e.altKey && (e.key === 'ArrowDown' || e.key === 'ArrowUp');
+        const next = toEnd
+          ? (step > 0 ? list.length - 1 : 0)
+          : at < 0
+            ? (step > 0 ? 0 : list.length - 1)
+            : Math.min(list.length - 1, Math.max(0, at + step));
         lastIndex = next;
         land(list[next]);
+
+        /* Shift and an arrow picks as it goes, the way every list with a
+           selection does it: from where the range started to where the
+           cursor now is, growing or shrinking with each step. */
+        if (extending) {
+          const idOf = (row: HTMLElement) => row.dataset.taskId ?? '';
+          if (!range || !list.some((row) => idOf(row) === range!.from)) {
+            const from = idOf(current ?? list[next]);
+            range = { from, base: store.selection.filter((id) => id !== from) };
+          }
+          const start = list.findIndex((row) => idOf(row) === range!.from);
+          const span = start <= next ? list.slice(start, next + 1) : list.slice(next, start + 1).reverse();
+          const picked = span.map(idOf).filter((id) => {
+            const task = store.snapshot.items[id];
+            return task !== undefined && !task.checked;
+          });
+          // The cursor's end goes last, so a Shift+click carries on from it.
+          store.selectRange([...new Set([...range.base, ...picked])], false);
+        }
         return;
       }
 
@@ -253,6 +390,58 @@ export function useKeyboard(bridge: KeyboardBridge) {
         const item = store.snapshot.items[id];
         if (!item) return;
         lastIndex = Math.max(0, rows().indexOf(current));
+
+        /* Inside a selection, the keys below are for all of it — the same
+           rule as E and delete. A change that can take the tasks off the page
+           (a date, a project) ends the selection, as the bar's does; one that
+           leaves them in place (a priority, a nudge of a day) keeps it, so the
+           next key can follow. */
+        const selected = store.selection;
+        const onSelection = selected.length > 1 && selected.includes(id);
+        const openBulk = (menu: BulkMenuName) => {
+          window.dispatchEvent(new CustomEvent(BULK_MENU_EVENT, { detail: menu }));
+        };
+
+        /* Things' own keys for the same menus: ⌘S for the date, ⇧⌘M to move. */
+        if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 's') {
+          e.preventDefault();
+          if (onSelection) openBulk('date'); else ask(current, 'schedule');
+          return;
+        }
+        if ((e.metaKey || e.ctrlKey) && !e.altKey && e.shiftKey && e.key.toLowerCase() === 'm') {
+          e.preventDefault();
+          if (onSelection) openBulk('move'); else ask(current, 'move');
+          return;
+        }
+
+        /* ^] and ^[ push the date a day later or earlier, ⇧ for a week, as in
+           Things. Read by the key's place as well as its character, since ]
+           and [ sit elsewhere (or behind ⌥) on other layouts. A task with no
+           date starts from today; the time of day and a repeat rule are kept,
+           and the week tag comes off — a date and the week tag disagree. */
+        const bracket = e.code === 'BracketRight' || e.key === ']' || e.key === '}'
+          ? 1
+          : e.code === 'BracketLeft' || e.key === '[' || e.key === '{' ? -1 : 0;
+        if (e.ctrlKey && !e.metaKey && !e.altKey && bracket !== 0) {
+          e.preventDefault();
+          const days = bracket * (e.shiftKey ? 7 : 1);
+          const ids = onSelection ? selected : [id];
+          const shifted = (task: typeof item) =>
+            addDays(startOfDay(dueDate(task) ?? new Date()), days);
+          const { locale, dateFormat } = store.prefs;
+          const message = ids.length > 1
+            ? say(days > 0
+              ? (e.shiftKey ? 'bulk.laterWeek' : 'bulk.laterDay')
+              : (e.shiftKey ? 'bulk.earlierWeek' : 'bulk.earlierDay'), { count: ids.length })
+            : say('drop.toDay', { day: formatDayOrName(shifted(item), locale, dateFormat) });
+          void store.updateMany(
+            ids,
+            (task) => dropMutation(task, { kind: 'day', date: shifted(task) })?.update ?? null,
+            message,
+          );
+          keepCursor(id);
+          return;
+        }
 
         /* Todoist opens a task with Enter and edits it with Cmd+E, which here
            are the same panel and so the same key twice. Enter is the row's
@@ -323,20 +512,50 @@ export function useKeyboard(bridge: KeyboardBridge) {
           window.setTimeout(() => land(rows()[Math.min(at, rows().length - 1)]), TICK_SETTLES_MS);
           return;
         }
-        if (e.key === 't') { e.preventDefault(); ask(current, 'schedule'); return; }
+        if (e.key === 't') {
+          e.preventDefault();
+          if (onSelection) openBulk('date'); else ask(current, 'schedule');
+          return;
+        }
         if (e.key === 'T') {
           // Shift+T, as in Todoist: the date comes off.
           e.preventDefault();
+          if (onSelection) {
+            store.clearSelection();
+            void store.updateMany(
+              selected,
+              (task) => (task.due ? { due: null } : null),
+              say('bulk.dateRemoved', { count: selected.length }),
+            );
+            return;
+          }
           void store.updateTask(id, { due: null });
+          keepCursor(id);
           return;
         }
-        if (e.key === 'v') { e.preventDefault(); ask(current, 'move'); return; }
+        if (e.key === 'v') {
+          e.preventDefault();
+          if (onSelection) openBulk('move'); else ask(current, 'move');
+          return;
+        }
         if (e.key === '.') { e.preventDefault(); ask(current, 'more'); return; }
         if (e.key === 'x') { e.preventDefault(); store.toggleSelection(id); return; }
         if (e.key >= '1' && e.key <= '4') {
           e.preventDefault();
           // Todoist counts priority the other way up: its 4 is p1.
-          void store.updateTask(id, { priority: 5 - Number(e.key) });
+          const priority = 5 - Number(e.key);
+          /* Every task of the selection at once, one toast, one undo — and the
+             selection stays, since a priority moves nothing off the page. */
+          if (onSelection) {
+            void store.updateMany(
+              selected,
+              (task) => (task.priority === priority ? null : { priority }),
+              say('bulk.prioritySet', { count: selected.length, priority: `P${e.key}` }),
+            );
+          } else {
+            void store.updateTask(id, { priority });
+          }
+          keepCursor(id);
           return;
         }
       }
@@ -353,8 +572,12 @@ export function useKeyboard(bridge: KeyboardBridge) {
     };
 
     window.addEventListener('keydown', onKey);
+    document.addEventListener('focusin', onFocusIn);
+    document.addEventListener('pointerdown', onPointerDown, true);
     return () => {
       window.removeEventListener('keydown', onKey);
+      document.removeEventListener('focusin', onFocusIn);
+      document.removeEventListener('pointerdown', onPointerDown, true);
       stopGoing();
     };
   }, []);

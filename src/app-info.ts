@@ -8,10 +8,11 @@
  * cannot drift apart.
  */
 export const APP_NAME = 'Enhanced for Todoist';
-export const VERSION = '1.13.0';
+export const VERSION = '1.14.0';
 export const AUTHOR = 'julesbertolino';
 export const AUTHOR_AVATAR_URL = 'https://github.com/julesvbertolino.png?size=96';
 
+/** The official site, for the About section. A self-hosted copy's own address is PUBLIC_URL (vite.config.ts). */
 export const SITE_URL = 'https://todoistenhanced.julesbertolino.fr';
 export const GITHUB_URL = 'https://github.com/julesvbertolino/todoist-enhancements';
 export const COFFEE_URL = 'https://buymeacoffee.com/julesbertolino';

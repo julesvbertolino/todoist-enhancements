@@ -1,11 +1,10 @@
-import { SITE_URL } from '@/app-info';
-
 /**
  * Signing in with Todoist, without a server.
  *
  * Todoist accepts a "Client ID Metadata Document": the client id is the URL
- * of a small JSON file this site hosts (public/oauth/client.json), which
- * names the app and the addresses it may return to. There is no registration
+ * of a small JSON file this site hosts (oauth/client.json, written by the
+ * build for PUBLIC_URL — see vite.config.ts), which names the app and the
+ * addresses it may return to. There is no registration
  * and no secret — the app proves the round trip is its own with PKCE instead,
  * which is exactly what a page with no server needs. Todoist answers the
  * token exchange from the browser (it sends CORS headers for this origin).
@@ -15,7 +14,7 @@ import { SITE_URL } from '@/app-info';
  * where every tab reads it and renewed under a lock, one tab at a time.
  */
 
-export const OAUTH_CLIENT_ID = `${SITE_URL}/oauth/client.json`;
+export const OAUTH_CLIENT_ID = `${__PUBLIC_URL__}oauth/client.json`;
 const AUTHORIZE_URL = 'https://app.todoist.com/oauth/authorize';
 const TOKEN_URL = 'https://api.todoist.com/oauth/access_token';
 /** Read and write, delete tasks, and delete projects — everything the app does. */
@@ -93,6 +92,22 @@ async function challengeOf(verifier: string): Promise<string> {
 /** Where Todoist sends the person back: this page, without its route or query. */
 function redirectUri(): string {
   return `${window.location.origin}${window.location.pathname}`;
+}
+
+/**
+ * The address this copy was built for, when it is not the one it runs on.
+ *
+ * Todoist would refuse the round trip with a bare "Invalid redirect URI" and
+ * no hint of why; a copy uploaded somewhere without being rebuilt for it says
+ * so itself, before leaving. Development runs are left alone: the dev address
+ * Todoist knows is in the list, and any other port fails as it always has.
+ */
+export function builtForElsewhere(): string | null {
+  const here = redirectUri();
+  if (here === __PUBLIC_URL__ || here === __OAUTH_DEV_REDIRECT__) return null;
+  const host = window.location.hostname;
+  if (host === 'localhost' || host === '127.0.0.1' || host === '[::1]') return null;
+  return __PUBLIC_URL__;
 }
 
 /* ---------- The round trip ---------- */

@@ -8,7 +8,7 @@ import { dueDate } from '@/domain/dates';
 import { hasLabel, isOpen } from '@/domain/views';
 import type { RowOrder } from '@/domain/dnd';
 import { PREFERENCES_TASK_CONTENT } from './prefs';
-import { byChildOrder, byLabelOrder } from '@/domain/orderKey';
+import { byChildOrder, byLabelOrder, bySectionOrder } from '@/domain/orderKey';
 
 /**
  * The workspace filter's stand-in for "My projects".
@@ -291,6 +291,17 @@ export function groupItems(
   }
 
   const result = [...buckets.entries()].map(([key, value]) => ({ key, ...value }));
+  /* Groups keep their own order, whatever the sort: the sort is for the tasks
+     inside each group. Taken from the order the tasks arrived in, the groups
+     followed the sort — sorted by priority, the project holding a P1 jumped
+     to the top of a list grouped by project. */
+  if (group === 'project' || group === 'section' || group === 'workspace') {
+    const rank = placeRanks(snapshot);
+    const place = group === 'project' ? rank.project : group === 'section' ? rank.section : rank.workspace;
+    result.sort((a, b) => place(a.key) - place(b.key) || a.title.localeCompare(b.title));
+  } else if (group === 'priority') {
+    result.sort((a, b) => a.key.localeCompare(b.key));
+  }
   // Date groups read chronologically; tag groups follow the order maintained in Todoist.
   if (group === 'day' || group === 'week' || group === 'month') {
     result.sort((a, b) => (a.key === 'none' ? 1 : b.key === 'none' ? -1 : a.key.localeCompare(b.key)));
@@ -321,6 +332,60 @@ function bucketDateKey(date: Date, group: 'day' | 'week' | 'month'): string {
     return `${y}-${m}-w${week}`;
   }
   return `${y}-${m}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+/**
+ * Where projects, sections and workspaces sit, top to bottom, as the sidebar
+ * draws them: the Inbox first, then each workspace's tree, a folder or a
+ * parent before what it holds. A section follows its project, after the
+ * project's tasks that have no section, in the project's own order. Anything
+ * the sidebar does not show (archived, unknown) goes last.
+ */
+export function placeRanks(snapshot: Snapshot): {
+  project: (id: string) => number;
+  section: (id: string) => number;
+  workspace: (id: string) => number;
+} {
+  const projects = new Map<string, number>();
+  const workspaces = new Map<string, number>();
+  const inbox = Object.values(snapshot.projects).find((p) => p.inbox_project && !p.is_deleted);
+  if (inbox) projects.set(inbox.id, 0);
+  const walk = (nodes: ProjectNode[]) => {
+    for (const node of nodes) {
+      projects.set(node.project.id, projects.size);
+      walk(node.children);
+    }
+  };
+  for (const workspace of projectTree(snapshot)) {
+    workspaces.set(workspace.workspaceId ?? PERSONAL_WORKSPACE, workspaces.size);
+    walk(workspace.roots);
+  }
+
+  const sections = new Map<string, number>();
+  const bySection = new Map<string, Array<Snapshot['sections'][string]>>();
+  for (const section of Object.values(snapshot.sections)) {
+    if (section.is_deleted) continue;
+    const list = bySection.get(section.project_id);
+    if (list) list.push(section);
+    else bySection.set(section.project_id, [section]);
+  }
+  for (const list of bySection.values()) {
+    list.sort(bySectionOrder).forEach((section, at) => sections.set(section.id, at + 1));
+  }
+
+  const last = Number.MAX_SAFE_INTEGER;
+  const project = (id: string) => projects.get(id) ?? last;
+  return {
+    project,
+    // Tasks with no section lead, as they do at the top of a project.
+    section: (id: string) => {
+      if (id === 'none') return -1;
+      const section = snapshot.sections[id];
+      if (!section) return last;
+      return project(section.project_id) * 10_000 + (sections.get(id) ?? 9_999);
+    },
+    workspace: (id: string) => workspaces.get(id) ?? last,
+  };
 }
 
 /** A project and whatever sits inside it, so folders can nest their contents. */

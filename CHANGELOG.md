@@ -1,10 +1,87 @@
 # Changelog
+The changelog marks every line with :
+- 🆕 something the app did not do before,
+- 🎨 something existing that has been redesigned or reworded
+- 🐛 a bug or regression that was fixed
 
-What changed in each version, newest first.
+## 1.14.0
 
-Every line is marked with what it is: 🆕 something the app did not do before,
-🎨 something it already did, drawn, worded or done differently, 🐛 something
-that was wrong. New first, then changed, then fixed.
+The keyboard on a selection, links and email addresses to copy, menus that
+fit on a board, sign-in on your own server, and automatic tests behind every
+release.
+
+🆕 **The task keys work on a selection.** With the cursor inside a selection,
+1–4 set every selected task's priority, ⇧T takes all their dates off, and T
+and V open the bulk bar's Date and Move panels. In those panels ↑ ↓ walk the
+choices, Enter picks and Esc closes, and the cursor comes back to the tasks.
+
+🆕 **⌘↑ and ⌘↓ move a task, as in Things.** The task under the cursor takes
+the place of the one above or below it, the same as dropping it there: at the
+end of a section it goes on into the next one, in My week from Today into
+Anytime this week, passing over the groups a drag cannot drop into (Behind
+schedule, timed tasks). A sorted list switches to your own order, and the
+cursor goes with the task. ⌥⌘↑ and ⌥⌘↓ send it to the top or the bottom.
+
+🆕 **More of Things' keys.** ⌘S opens the date menu and ⇧⌘M the move menu;
+^] and ^[ push the date a day later or earlier (with ⇧, a week), on a whole
+selection too, keeping the time and the repeat rule; ⌥↑ and ⌥↓ jump to the
+first or last task, and ⌥⇧↑ / ⌥⇧↓ select up to there; ⌘/ shows or hides the
+sidebar.
+
+🆕 **Shift+↑ and Shift+↓ extend the selection.** From the task you started
+on to the cursor, growing and shrinking with each step, on top of anything
+already picked with Cmd+click.
+
+🆕 **⌘A selects every task in the list.** Outside a text field, ⌘A (Ctrl+A)
+picks every open task on the page in front and brings up the bulk-edit bar,
+instead of selecting the page's text. Inside a field it still selects the
+field's text.
+
+🆕 **Copy link.** Next to "Open in Todoist" in a task's menu: the task's
+Todoist address, on the clipboard.
+
+🆕 **Copy a project's email address.** In the project menu: anything emailed
+to that address becomes a task in the project.
+
+🆕 **Sign in with Todoist on your own copy.** A copy hosted elsewhere is built
+with `PUBLIC_URL=https://your.domain/ npm run build`, and the file Todoist
+reads to identify the app (`oauth/client.json`) then describes that copy. A
+copy built for another address says so on its sign-in screen instead of ending
+on Todoist's "Invalid redirect URI". See "Self-hosting" in the README.
+
+🆕 **Automatic tests.** Unit tests on the rules (estimates, conflicts, drops,
+order keys, recurrence, the matrix, synced settings, the sync queue) and
+journeys in a real browser on the demo. GitHub runs the tests and a build on
+every push, and the journeys on every pull request.
+
+🎨 **The shortcuts follow the keyboard, not the mouse.** The shortcuts sheet
+said "the task under the cursor", which reads as the mouse pointer; it now
+says the task picked with the arrow keys. Hovering a task never acts on it,
+so typing a search is always safe.
+
+🎨 **A new priority keeps the selection.** From the keys or from the bar, so
+the next change can follow on the same tasks.
+
+🎨 **The store is split by area.** No change in behaviour: one file per area
+instead of one 2,300-line file.
+
+🐛 **A second browser showed the walkthrough again.** Having been through the
+first run is now kept with the account's settings, so signing in elsewhere no
+longer asks again.
+
+🐛 **Groups followed the sort.** Grouped by project and sorted by priority,
+the project holding a P1 jumped to the top. Projects now keep the sidebar's
+order and sections their project's, and the sort applies inside each group.
+
+🐛 **The cursor was lost when a task moved.** A priority that re-sorted the
+list dropped the keyboard cursor, and the next key opened the search.
+
+🐛 **Row menus were cut off on a short board.** Schedule and Move on the last
+cards of a board opened past its bottom edge (and past its left edge in the
+first column). They now fit inside the board.
+
+🐛 **Toasts covered the bulk-edit bar.** A bulk action's toast now sits above
+the bar and any panel open on it.
 
 ## 1.13.0
 

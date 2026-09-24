@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Icon, type IconName } from './Icon';
 import { DateField } from './DateField';
 import { useT } from '@/hooks/useT';
 import { useStore } from '@/store/store';
 import { useConfirm } from './overlays/Confirm';
 import { markerStyle } from '@/domain/colors';
+import { BULK_MENU_EVENT, type BulkMenuName } from '@/hooks/useKeyboard';
 import { toDisplayPriority, toTodoistPriority, type DisplayPriority } from '@/domain/types';
 import type { DropTarget } from '@/domain/dnd';
 import { matchesSearch } from '@/domain/search';
@@ -21,10 +22,56 @@ import { byChildOrder, byLabelOrder, bySectionOrder } from '@/domain/orderKey';
  * selection belongs to the bar, and should not also throw the menu away.
  */
 function BulkMenu({
-  icon, label, children,
-}: { icon: IconName; label: string; children: (close: () => void) => ReactNode }) {
+  icon, label, name, children,
+}: {
+  icon: IconName;
+  label: string;
+  /** Which keyboard request opens this panel (T for date, V for move). */
+  name?: BulkMenuName;
+  children: (close: () => void) => ReactNode;
+}) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  /** Where the focus was when the panel opened, to give it back on closing. */
+  const opener = useRef<HTMLElement | null>(null);
+  /** Closes the panel and, from the keys, hands the focus straight back. */
+  const closeFromKeys = () => {
+    const back = opener.current;
+    if (back?.isConnected) back.focus({ preventScroll: true });
+    setOpen(false);
+  };
+
+  /** Opened by a key, so the panel takes the focus once it is drawn. */
+  const focusOnOpen = useRef(false);
+
+  const panelItems = (): HTMLElement[] => {
+    const panel = ref.current?.querySelector('.bulkpop');
+    return panel
+      ? [...panel.querySelectorAll<HTMLElement>('input, button:not([disabled])')]
+        .filter((item) => item.offsetParent !== null)
+      : [];
+  };
+
+  useEffect(() => {
+    if (!open || !focusOnOpen.current) return;
+    focusOnOpen.current = false;
+    const panel = ref.current?.querySelector('.bulkpop');
+    if (panel && !panel.contains(document.activeElement)) panelItems()[0]?.focus();
+  }, [open]);
+
+  /* Opened from the keyboard, the panel takes the focus: its own field when it
+     has one (Move's search already asks for it), otherwise its first choice. */
+  useEffect(() => {
+    if (!name) return;
+    const onAsk = (event: Event) => {
+      if ((event as CustomEvent<BulkMenuName>).detail !== name) return;
+      opener.current = document.activeElement as HTMLElement | null;
+      focusOnOpen.current = true;
+      setOpen(true);
+    };
+    window.addEventListener(BULK_MENU_EVENT, onAsk);
+    return () => window.removeEventListener(BULK_MENU_EVENT, onAsk);
+  }, [name]);
 
   useEffect(() => {
     if (!open) return;
@@ -39,27 +86,86 @@ function BulkMenu({
       setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
+      /* Up or Down with the focus still outside (on the task, or on the bar's
+         button after a click) steps into the panel. */
+      const step = e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0;
+      const panel = ref.current?.querySelector('.bulkpop');
+      if (step !== 0 && panel && !panel.contains(e.target as Node)) {
+        const items = panelItems();
+        if (items.length === 0) return;
+        e.preventDefault();
+        e.stopPropagation();
+        items[step > 0 ? 0 : items.length - 1].focus();
+        return;
+      }
       if (e.key !== 'Escape') return;
       e.stopPropagation();
-      setOpen(false);
+      closeFromKeys();
     };
     document.addEventListener('mousedown', onDown);
     document.addEventListener('keydown', onKey);
     return () => {
       document.removeEventListener('mousedown', onDown);
       document.removeEventListener('keydown', onKey);
+      /* Closing takes the focused choice with it, and the cursor with that:
+         the next key then opened the search instead of acting on the tasks.
+         The focus goes back where it came from, when that is still there. */
+      const back = opener.current;
+      opener.current = null;
+      window.setTimeout(() => {
+        const lost = !document.activeElement || document.activeElement === document.body;
+        if (lost && back?.isConnected) back.focus({ preventScroll: true });
+      }, 0);
     };
   }, [open]);
 
+  /**
+   * The keyboard inside the panel. Up and Down walk every choice — the search
+   * field, the options, the tag boxes, the date field — and wrap; Enter and
+   * Space are the focused control's own. Escape closes the panel even from a
+   * field that keeps its other keys to itself (Move's search). Caught on the
+   * way down, before those fields see the key, and only for what is really in
+   * the panel: the date field's calendar is drawn elsewhere and has keys of
+   * its own.
+   */
+  const onPanelKey = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    const panel = event.currentTarget;
+    const target = event.target as Node;
+    if (!panel.contains(target)) return;
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      closeFromKeys();
+      return;
+    }
+    const step = event.key === 'ArrowDown' ? 1 : event.key === 'ArrowUp' ? -1 : 0;
+    if (step === 0) return;
+    const items = panelItems();
+    if (items.length === 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const at = items.indexOf(document.activeElement as HTMLElement);
+    const next = at < 0 ? (step > 0 ? 0 : items.length - 1) : (at + step + items.length) % items.length;
+    items[next].focus();
+    items[next].scrollIntoView({ block: 'nearest' });
+  };
+
   return (
     <div className="bulkmenu" ref={ref}>
-      <button className="btn sm" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
+      <button
+        className="btn sm"
+        aria-expanded={open}
+        onClick={() => {
+          if (!open) opener.current = document.activeElement as HTMLElement | null;
+          setOpen((v) => !v);
+        }}
+      >
         <Icon name={icon} size="sm" />
         {label}
         <Icon name="caret" size="sm" />
       </button>
       {open && (
-        <div className="popover bulkpop" role="menu" aria-label={label}>
+        <div className="popover bulkpop" role="menu" aria-label={label} onKeyDownCapture={onPanelKey}>
           {children(() => setOpen(false))}
         </div>
       )}
@@ -96,6 +202,39 @@ export function BulkBar() {
   const [date, setDate] = useState('');
   const [projectQuery, setProjectQuery] = useState('');
   const [tagQuery, setTagQuery] = useState('');
+
+  /* The bar and the toasts share the foot of the window, and the toast that
+     answers a bulk action used to land on the very buttons the next one needs.
+     The bar says how much of the window it takes, and the toasts stand on it
+     (see `.toasts`); with no bar the variable is gone and they sit where they
+     always have. Measured rather than assumed: on a phone the bar wraps, and
+     the tags panel stays open while tags are ticked one after another, so an
+     open panel counts as part of the bar. */
+  const unmeasure = useRef<(() => void) | null>(null);
+  const measureBar = useCallback((node: HTMLDivElement | null) => {
+    unmeasure.current?.();
+    unmeasure.current = null;
+    const root = document.documentElement.style;
+    if (!node) { root.removeProperty('--bulkbar-room'); return; }
+    const place = () => {
+      const top = Math.min(
+        node.getBoundingClientRect().top,
+        ...[...node.querySelectorAll('.bulkpop')].map((pop) => pop.getBoundingClientRect().top),
+      );
+      root.setProperty('--bulkbar-room', `${Math.ceil(window.innerHeight - top)}px`);
+    };
+    place();
+    const resized = new ResizeObserver(place);
+    resized.observe(node);
+    const opened = new MutationObserver(place);
+    opened.observe(node, { childList: true, subtree: true });
+    window.addEventListener('resize', place);
+    unmeasure.current = () => {
+      resized.disconnect();
+      opened.disconnect();
+      window.removeEventListener('resize', place);
+    };
+  }, []);
 
   if (selection.length === 0) return null;
 
@@ -190,9 +329,10 @@ export function BulkBar() {
     );
   };
 
+  /* The selection stays: a priority moves nothing off the page, and the next
+     change is usually for the same tasks. */
   const setPriority = (priority: DisplayPriority) => {
     const ids = selection;
-    clearSelection();
     void updateMany(
       ids,
       (item) =>
@@ -204,11 +344,11 @@ export function BulkBar() {
   };
 
   return (
-    <div className="bulkbar" role="toolbar" aria-label={t('bulk.title')}>
+    <div ref={measureBar} className="bulkbar" role="toolbar" aria-label={t('bulk.title')}>
       <strong>{t('bulk.count', { count })}</strong>
       <span className="sep" aria-hidden="true" />
 
-      <BulkMenu icon="calendar" label={t('bulk.date')}>
+      <BulkMenu icon="calendar" label={t('bulk.date')} name="date">
         {(close) => (
           <>
             <button
@@ -265,7 +405,7 @@ export function BulkBar() {
         )}
       </BulkMenu>
 
-      <BulkMenu icon="project" label={t('bulk.move')}>
+      <BulkMenu icon="project" label={t('bulk.move')} name="move">
         {(close) => (
           <div className="bulkpop-list">
             <div className="pickersearch">

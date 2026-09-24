@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { copyText, isTemporaryId, todoistTaskUrl } from '@/api/links';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
 import { Overlay } from './Overlay';
 import { Icon } from '../Icon';
@@ -289,6 +290,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
   const skipOccurrence = useStore((s) => s.skipOccurrence);
   const naturalDates = useStore((s) => s.prefs.naturalDates);
   const toast = useStore((s) => s.toast);
+  const demo = useStore((s) => s.demo);
   const confirm = useConfirm();
 
   const item = taskId ? snapshot.items[taskId] : null;
@@ -622,11 +624,23 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
                   className="opt"
                   onClick={() => {
                     setMenuOpen(false);
-                    window.open(`https://app.todoist.com/app/task/${item.id}`, '_blank', 'noopener');
+                    window.open(todoistTaskUrl(item.id), '_blank', 'noopener');
                   }}
                 >
                   <span><Icon name="external" size="sm" /> {t('task.openInTodoist')}</span>
                 </button>
+                {!demo && !isTemporaryId(item.id) && (
+                  <button
+                    className="opt"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      void copyText(todoistTaskUrl(item.id))
+                        .then((ok) => toast(t(ok ? 'task.linkCopied' : 'task.linkNotCopied')));
+                    }}
+                  >
+                    <span><Icon name="link" size="sm" /> {t('task.copyLink')}</span>
+                  </button>
+                )}
                 <hr />
                 <button className="opt danger" onClick={askThenDelete}>
                   <span><Icon name="close" size="sm" /> {t('task.delete')}</span>

@@ -50,6 +50,7 @@ const SECTIONS: Array<{ title: TranslationKey; join?: Join; rows: Row[] }> = [
       [[['⌘', 'Z']], 'common.undo'],
       [[['⌘', '↵']], 'keys.saveTask'],
       [[['?']], 'keys.thisList'],
+      [[['⌘', '/']], 'keys.toggleSidebar'],
     ],
   },
   {
@@ -73,6 +74,12 @@ const SECTIONS: Array<{ title: TranslationKey; join?: Join; rows: Row[] }> = [
       [[['↑', '↓']], 'keys.moveCursor'],
       [[['J', 'K']], 'keys.moveCursorAlt'],
       [[['Esc']], 'keys.dropCursor'],
+      [[['⇧', '↑', '↓']], 'keys.extendSelection'],
+      [[['⌘', '↑', '↓']], 'keys.moveTask'],
+      [[['⌥', '⌘', '↑', '↓']], 'keys.moveTaskEnds'],
+      [[['⌥', '↑', '↓']], 'keys.cursorEnds'],
+      [[['⌥', '⇧', '↑', '↓']], 'keys.extendSelectionEnds'],
+      [[['⌘', 'A']], 'keys.selectAll'],
     ],
   },
   {
@@ -80,9 +87,10 @@ const SECTIONS: Array<{ title: TranslationKey; join?: Join; rows: Row[] }> = [
     rows: [
       [[['↵']], 'keys.openTask'],
       [[['E']], 'task.complete'],
-      [[['T']], 'task.schedule'],
+      [[['T'], ['⌘', 'S']], 'task.schedule'],
+      [[['⌃', ']'], ['⌃', '[']], 'keys.shiftDate'],
       [[['⇧', 'T']], 'task.removeDate'],
-      [[['V']], 'task.moveToProject'],
+      [[['V'], ['⇧', '⌘', 'M']], 'task.moveToProject'],
       [[['1', '2', '3', '4']], 'keys.setPriority'],
       [[['X']], 'keys.select'],
       [[['.']], 'task.moreActions'],
