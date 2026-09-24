@@ -6,6 +6,7 @@ import { useData } from '@/hooks/useData';
 import { navigate } from '@/hooks/useRoute';
 import { markerStyle } from '@/domain/colors';
 import { useStore } from '@/store/store';
+import { bySectionOrder } from '@/domain/orderKey';
 
 interface SearchProps {
   open: boolean;
@@ -135,7 +136,7 @@ export function Search({ open, onClose, onOpen, seed = '' }: SearchProps) {
         .sort((a, b) => {
           const aExact = fold(a.name) === q ? 0 : 1;
           const bExact = fold(b.name) === q ? 0 : 1;
-          return aExact - bExact || a.section_order - b.section_order;
+          return aExact - bExact || bySectionOrder(a, b);
         })
         .slice(0, 6)
         .map((section, index): Hit => {

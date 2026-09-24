@@ -8,6 +8,7 @@ import { dueDate } from '@/domain/dates';
 import { hasLabel, isOpen } from '@/domain/views';
 import type { RowOrder } from '@/domain/dnd';
 import { PREFERENCES_TASK_CONTENT } from './prefs';
+import { byChildOrder, byLabelOrder } from '@/domain/orderKey';
 
 /**
  * The workspace filter's stand-in for "My projects".
@@ -28,7 +29,7 @@ export function childIndex(snapshot: Snapshot): Map<string, Item[]> {
     if (bucket) bucket.push(item);
     else index.set(item.parent_id, [item]);
   }
-  for (const bucket of index.values()) bucket.sort((a, b) => a.child_order - b.child_order);
+  for (const bucket of index.values()) bucket.sort(byChildOrder);
   return index;
 }
 
@@ -109,14 +110,17 @@ const manualCompare = (a: Item, b: Item, order: RowOrder): number =>
     ? dayRank(a) - dayRank(b)
       || (a.added_at ?? '').localeCompare(b.added_at ?? '')
       || a.id.localeCompare(b.id)
-    : a.child_order - b.child_order || a.id.localeCompare(b.id);
+    : byChildOrder(a, b) || a.id.localeCompare(b.id);
 
 /** Todoist stores labels by id while a task carries their names. */
 const labelOrderByName = (snapshot: Snapshot): Map<string, number> => {
+  /* A rank rather than `item_order` itself: the labels are put in order the
+     way everything else is, by `order_key` where Todoist has written one. */
   const order = new Map<string, number>();
-  for (const label of Object.values(snapshot.labels)) {
-    if (!label.is_deleted) order.set(label.name.toLowerCase(), label.item_order);
-  }
+  Object.values(snapshot.labels)
+    .filter((label) => !label.is_deleted)
+    .sort(byLabelOrder)
+    .forEach((label, rank) => order.set(label.name.toLowerCase(), rank));
   return order;
 };
 
@@ -362,7 +366,7 @@ export function projectTree(snapshot: Snapshot): WorkspaceGroup[] {
   }
 
   const byOrder = (a: ProjectNode, b: ProjectNode) =>
-    a.project.child_order - b.project.child_order;
+    byChildOrder(a.project, b.project);
   for (const node of nodes.values()) node.children.sort(byOrder);
 
   return [...groups.entries()]
@@ -402,6 +406,6 @@ export function siblingOrder(snapshot: Snapshot, projectId: string): string[] {
       !other.inbox_project &&
       (other.parent_id ?? null) === (project.parent_id ?? null) &&
       (other.workspace_id ?? null) === (project.workspace_id ?? null))
-    .sort((a, b) => a.child_order - b.child_order)
+    .sort(byChildOrder)
     .map((other) => other.id);
 }

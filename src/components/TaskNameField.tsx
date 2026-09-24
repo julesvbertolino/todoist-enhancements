@@ -11,6 +11,7 @@ import {
 import { useStore } from '@/store/store';
 import { useT } from '@/hooks/useT';
 import type { Snapshot } from '@/domain/types';
+import { bySectionOrder } from '@/domain/orderKey';
 
 /** A name with its spaces, case and accents set aside, as the parser reads it. */
 const squash = (text: string): string =>
@@ -134,7 +135,7 @@ export function TaskNameField({
         .filter((p) => !p.is_archived && !p.is_deleted && !p.is_folder);
       const sectionsOf = (projectId: string) => Object.values(snapshot.sections)
         .filter((s) => s.project_id === projectId && !s.is_archived && !s.is_deleted)
-        .sort((a, b) => a.section_order - b.section_order);
+        .sort(bySectionOrder);
 
       const slash = token.query.indexOf('/');
       const head = slash < 0 ? token.query : token.query.slice(0, slash);

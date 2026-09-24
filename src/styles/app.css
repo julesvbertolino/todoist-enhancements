@@ -52,6 +52,10 @@
   /* chart palette — ONE palette, used by every chart in the product */
   --c1:#dc4c3e; --c2:#e0a33c; --c3:#4f8f52; --c4:#4a7fd0; --c5:#8a6fc7;
   --c-track:#eae7e3;
+  /* A single measured series — how many, how long. Neutral on purpose, and
+     the same whatever the accent: the accent is kept for what deserves the
+     eye (the best day, the current period), and red already means late. */
+  --c-data:#7c8698;
   /* categorical series, in the fixed order the charts assign them */
   --series-1:#2a78d6; --series-2:#eb6834; --series-3:#1baf7a; --series-4:#eda100;
   --series-5:#e87ba4; --series-6:#008300; --series-7:#4a3aa7; --series-8:#e34948;
@@ -169,6 +173,7 @@
 
   --c1:#e2594c; --c2:#e6ad4a; --c3:#63a866; --c4:#6394e0; --c5:#a18ad9;
   --c-track:#333231;
+  --c-data:#7f899c;
   --series-1:#4c8ff0; --series-2:#f07a4a; --series-3:#2ec48d; --series-4:#f0b020;
   --series-5:#ef8fb5; --series-6:#45ad45; --series-7:#8d7de6; --series-8:#ef6362;
 
@@ -440,7 +445,7 @@ ul{margin:0;padding:0;list-style:none}
 .protonote strong{color:var(--note-strong);font-weight:600}
 .protonote span:last-child{white-space:nowrap}
 
-.app{width:min(1480px,100%);height:calc(100vh - 34px);min-height:680px;margin:0 auto;
+.app{width:min(1480px,100%);margin:0 auto;
   display:grid;grid-template-columns:var(--sidebar-w) minmax(0,1fr);overflow:hidden;background:var(--surface);
   transition:grid-template-columns .2s ease}
 .app.collapsed{grid-template-columns:0 minmax(0,1fr)}

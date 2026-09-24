@@ -9,6 +9,7 @@ import { rootItems } from '@/store/selectors';
 import { hasLabel } from '@/domain/views';
 import { markerStyle } from '@/domain/colors';
 import type { Label } from '@/domain/types';
+import { byLabelOrder } from '@/domain/orderKey';
 
 /**
  * Every tag on the account, in the order Todoist keeps them.
@@ -31,7 +32,7 @@ export function LabelsView() {
     () =>
       Object.values(snapshot.labels)
         .filter((l) => !l.is_deleted && !l.name.startsWith('est-'))
-        .sort((a, b) => a.item_order - b.item_order),
+        .sort(byLabelOrder),
     [snapshot.labels],
   );
 

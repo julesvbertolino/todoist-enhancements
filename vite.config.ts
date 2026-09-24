@@ -3,9 +3,37 @@ import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 import { fileURLToPath, URL } from 'node:url';
 
+/**
+ * The security headers the host sends, from public/.htaccess.
+ *
+ * Apache applies them in production. `npm run preview` applies the same ones
+ * here so a build can be checked against the policy before it is uploaded.
+ * Keep the two in step.
+ */
+const SECURITY_HEADERS = {
+  'Content-Security-Policy': [
+    "default-src 'self'",
+    "script-src 'self'",
+    "style-src 'self' 'unsafe-inline'",
+    "connect-src 'self' https://api.todoist.com",
+    "img-src 'self' data: blob: https:",
+    "font-src 'self'",
+    "manifest-src 'self'",
+    "worker-src 'self'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+    "object-src 'none'",
+  ].join('; '),
+  'X-Content-Type-Options': 'nosniff',
+  'Referrer-Policy': 'strict-origin-when-cross-origin',
+  'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=(), usb=()',
+};
+
 export default defineConfig({
   // Relative base so the build can be dropped into any subfolder on Infomaniak.
   base: './',
+  preview: { headers: SECURITY_HEADERS },
   resolve: {
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
   },

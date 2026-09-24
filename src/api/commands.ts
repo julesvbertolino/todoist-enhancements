@@ -1,4 +1,4 @@
-import { request } from './client';
+import { ApiError, request } from './client';
 import type { SyncResponse } from './sync';
 
 /**
@@ -32,14 +32,78 @@ export function command(type: string, args: Record<string, unknown>, tempId?: st
 }
 
 /** Todoist accepts up to 100 commands in one call. */
-const MAX_COMMANDS_PER_CALL = 100;
+export const MAX_COMMANDS_PER_CALL = 100;
+/**
+ * And a request body of at most 1 MiB. A hundred ordinary commands never come
+ * near it, but a batch built from long descriptions — restoring a deleted
+ * branch, writing the settings — could, so a request is also cut by size.
+ */
+const MAX_BODY_BYTES = 900_000;
 
 export interface CommandResult {
-  response: SyncResponse;
-  /** Commands Todoist rejected, with the reason it gave. */
+  /** Todoist's answers, one per request, in the order they were sent. */
+  responses: SyncResponse[];
+  /** Commands Todoist received and refused, with the reason it gave. */
   failures: Array<{ uuid: string; error: string }>;
+  /** Every temporary id Todoist resolved, across all the requests. */
+  mapping: Record<string, string>;
+  /** The uuids of the commands Todoist received, accepted or refused. */
+  delivered: string[];
+  /**
+   * Commands that never left because the network failed part-way, rewritten
+   * with the ids resolved before it did. They belong back in the queue.
+   */
+  undelivered: Command[];
+  /** Why the undelivered ones did not go. */
+  error?: unknown;
 }
 
+/** Replaces every temporary id that Todoist has resolved, wherever it sits in a command's arguments. */
+function resolveIds(value: unknown, mapping: Record<string, string>): unknown {
+  if (typeof value === 'string') return mapping[value] ?? value;
+  if (Array.isArray(value)) return value.map((entry) => resolveIds(entry, mapping));
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, entry]) => [mapping[key] ?? key, resolveIds(entry, mapping)]),
+    );
+  }
+  return value;
+}
+
+/** Cuts a list of commands into requests Todoist will accept, keeping their order. */
+function chunk(commands: Command[]): Command[][] {
+  const chunks: Command[][] = [];
+  let current: Command[] = [];
+  let bytes = 0;
+  for (const cmd of commands) {
+    const size = new TextEncoder().encode(JSON.stringify(cmd)).length;
+    if (current.length > 0
+      && (current.length >= MAX_COMMANDS_PER_CALL || bytes + size > MAX_BODY_BYTES)) {
+      chunks.push(current);
+      current = [];
+      bytes = 0;
+    }
+    current.push(cmd);
+    bytes += size;
+  }
+  if (current.length > 0) chunks.push(current);
+  return chunks;
+}
+
+/**
+ * Sends every command, as many requests as it takes.
+ *
+ * It used to send the first hundred and say nothing about the rest, which the
+ * callers then took off the queue as if they had gone. Requests go one after
+ * the other, in order, each carrying the sync token the previous one returned
+ * and the ids it resolved, because a later command can name something an
+ * earlier one created.
+ *
+ * A request Todoist refuses outright is a refusal of each command in it, and
+ * the next request still goes. A request the network loses stops the run: if
+ * nothing had gone yet the error is thrown as before, and otherwise what went
+ * is returned with what did not, for the caller to queue again.
+ */
 export async function sendCommands(
   syncToken: string,
   commands: Command[],
@@ -48,22 +112,46 @@ export async function sendCommands(
     throw new Error('sendCommands called with no commands');
   }
 
-  const batch = commands.slice(0, MAX_COMMANDS_PER_CALL);
-  const response = await request<SyncResponse>('/sync', {
-    method: 'POST',
-    form: {
-      sync_token: syncToken,
-      resource_types: JSON.stringify(['items', 'projects', 'sections', 'labels', 'notes']),
-      commands: JSON.stringify(batch),
-    },
-  });
+  const result: CommandResult = {
+    responses: [], failures: [], mapping: {}, delivered: [], undelivered: [],
+  };
+  let token = syncToken;
+  const chunks = chunk(commands);
 
-  const failures: Array<{ uuid: string; error: string }> = [];
-  for (const [uuid, status] of Object.entries(response.sync_status ?? {})) {
-    if (status !== 'ok') failures.push({ uuid, error: status.error });
+  for (let at = 0; at < chunks.length; at += 1) {
+    const batch = chunks[at].map((cmd) =>
+      at === 0 ? cmd : { ...cmd, args: resolveIds(cmd.args, result.mapping) as Command['args'] });
+
+    try {
+      const response = await request<SyncResponse>('/sync', {
+        method: 'POST',
+        form: {
+          sync_token: token,
+          resource_types: JSON.stringify(['items', 'projects', 'sections', 'labels', 'notes', 'project_notes']),
+          commands: JSON.stringify(batch),
+        },
+      });
+      result.responses.push(response);
+      Object.assign(result.mapping, response.temp_id_mapping ?? {});
+      for (const [uuid, status] of Object.entries(response.sync_status ?? {})) {
+        if (status !== 'ok') result.failures.push({ uuid, error: status.error });
+      }
+      token = response.sync_token ?? token;
+    } catch (error) {
+      if (error instanceof ApiError && error.isRefusal) {
+        for (const cmd of batch) result.failures.push({ uuid: cmd.uuid, error: error.detail });
+      } else {
+        if (at === 0) throw error;
+        result.undelivered = chunks.slice(at).flat()
+          .map((cmd) => ({ ...cmd, args: resolveIds(cmd.args, result.mapping) as Command['args'] }));
+        result.error = error;
+        return result;
+      }
+    }
+    result.delivered.push(...batch.map((cmd) => cmd.uuid));
   }
 
-  return { response, failures };
+  return result;
 }
 
 /* ---------- The commands the product actually issues ---------- */

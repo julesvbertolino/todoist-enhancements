@@ -19,37 +19,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#d1453b" />
     <meta name="color-scheme" content="light dark" />
-    <script>
-      /*
-        The theme, before the first paint.
-
-        Preferences live in IndexedDB and arrive a moment after the page does.
-        Without this the app opens white and turns dark once they load, which
-        is a flash of the wrong theme on every single launch. Only the choice
-        is stored; "system" is still resolved against the device here, the
-        same way the app resolves it afterwards.
-      */
-      try {
-        var choice = localStorage.getItem('theme');
-        var dark = choice === 'dark' ||
-          (choice !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-        document.documentElement.dataset.theme = dark ? 'dark' : 'light';
-        /* The accent, for the same reason: a red flash before the green
-           arrives is the same wrong first paint in a different colour. */
-        var accent = localStorage.getItem('accent');
-        if (accent) document.documentElement.dataset.accent = accent;
-        /* A custom accent is not in the stylesheet — it is computed from one
-           colour. Both schemes were worked out and stored when it was chosen,
-           so the right one can be written here without repeating the recipe. */
-        if (accent === 'custom') {
-          var vars = JSON.parse(localStorage.getItem('accentVars') || 'null');
-          var set = vars && vars[dark ? 'dark' : 'light'];
-          for (var token in set) {
-            document.documentElement.style.setProperty('--' + token, set[token]);
-          }
-        }
-      } catch (e) {}
-    </script>
+    <!--
+      The theme and accent, before the first paint. A file rather than an
+      inline script so the Content-Security-Policy in .htaccess can refuse
+      every inline script, with no hash to keep in step with this one. Not a
+      module and not deferred, on purpose: it has to run before the body is
+      drawn.
+    -->
+    <script src="./theme-boot.js"></script>
     <meta name="description" content="Enhanced for Todoist is an independent project. It is not created by, affiliated with, or supported by Todoist. An alternative, local-first client built around planning a week." />
     <title>Enhanced for Todoist</title>
 

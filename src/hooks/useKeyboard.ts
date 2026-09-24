@@ -312,10 +312,11 @@ export function useKeyboard(bridge: KeyboardBridge) {
           const picked = store.selection;
           const many = picked.length > 1 && picked.includes(id);
           if (many) {
-            for (const pickedId of picked) {
-              document.querySelector<HTMLElement>(`[data-task-id="${CSS.escape(pickedId)}"] .check`)?.click();
-            }
+            /* A selection is one act: one request, and one Cmd+Z that brings
+               every task back, rather than a click on each row and an undo
+               per task. */
             store.clearSelection();
+            void store.completeTasks(picked);
           } else {
             current.querySelector<HTMLElement>('.check')?.click();
           }

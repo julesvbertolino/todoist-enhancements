@@ -26,6 +26,7 @@ import { Icon } from '@/components/Icon';
 import type { RowList } from './RowList';
 import { usePhoneBehaviour } from '@/hooks/useTouchLayout';
 import { PRESS_HOLD_EVENT, projectRowAttr } from './ProjectRowSortable';
+import { byChildOrder, bySectionOrder, keyBetween, keysInOrder } from '@/domain/orderKey';
 
 /**
  * Puts the preview under the pointer by its left edge rather than its centre.
@@ -296,6 +297,25 @@ export function DragProvider({ children }: { children: ReactNode }) {
   }
 
   /** Where a task landed when it followed a row into another list. */
+  /** What a group drop names in its toast: "3 tasks moved to {this}". */
+  function groupDestination(target: DropTarget): string {
+    switch (target.kind) {
+      case 'today': return t('common.today');
+      case 'day': return formatDayOrName(target.date, locale, dateFormat);
+      case 'quick': return t('group.quick');
+      case 'anytime': return t('group.anytime');
+      case 'someday': return t('nav.someday');
+      case 'label': return `@${target.label}`;
+      case 'project': return snapshot.projects[target.projectId]?.name ?? '';
+      case 'section': {
+        const project = snapshot.projects[target.projectId]?.name ?? '';
+        const section = target.sectionId ? snapshot.sections[target.sectionId]?.name : null;
+        return section ? `${project} / ${section}` : project;
+      }
+      default: return '';
+    }
+  }
+
   function whereItLanded(container: { project_id: string; section_id: string | null }): string {
     return container.section_id
       ? t('drop.toSection', { name: snapshot.sections[container.section_id]?.name ?? '' })
@@ -399,7 +419,7 @@ export function DragProvider({ children }: { children: ReactNode }) {
         const siblings = Object.values(snapshot.sections)
           .filter((section) => section.project_id === snapshot.sections[from]?.project_id
             && !section.is_archived && !section.is_deleted)
-          .sort((a, b) => a.section_order - b.section_order)
+          .sort(bySectionOrder)
           .map((section) => section.id);
         const next = reorderRelative(
           siblings, from, sectionPosition[1], sectionPosition[2] as 'before' | 'after',
@@ -411,7 +431,7 @@ export function DragProvider({ children }: { children: ReactNode }) {
       const all = Object.values(snapshot.sections)
         .filter((section) => section.project_id === snapshot.sections[from]?.project_id
           && !section.is_archived && !section.is_deleted)
-        .sort((a, b) => a.section_order - b.section_order)
+        .sort(bySectionOrder)
         .map((section) => section.id);
       const rawSlot = Number(overId.split(':')[1]);
       const next = reorderAtSlot(all, from, rawSlot);
@@ -433,7 +453,7 @@ export function DragProvider({ children }: { children: ReactNode }) {
 
       const siblings = Object.values(snapshot.items)
         .filter((child) => child.parent_id === parentId && !child.is_deleted)
-        .sort((a, b) => a.child_order - b.child_order)
+        .sort(byChildOrder)
         .map((child) => child.id);
 
       const at = siblings.indexOf(from);
@@ -581,6 +601,28 @@ export function DragProvider({ children }: { children: ReactNode }) {
     const target = decodeTarget(String(event.over.id));
     if (!item || !target) return;
 
+    /* A task carried out of a selection carries the selection: the drop is
+       the same act the bulk bar does, on every picked task, with one toast
+       and one undo. Only the dragged task used to go. */
+    const store = useStore.getState();
+    if (store.selection.length > 1 && store.selection.includes(item.id)) {
+      const ids = store.selection;
+      const name = groupDestination(target);
+      if (target.kind === 'project' || target.kind === 'section') {
+        store.clearSelection();
+        await store.moveMany(ids, {
+          project_id: target.projectId,
+          section_id: target.kind === 'section' ? target.sectionId ?? null : null,
+        }, name);
+        return;
+      }
+      if (name) {
+        store.clearSelection();
+        await store.sendManyTo(ids, target, name);
+        return;
+      }
+    }
+
     const mutation = dropMutation(item, target);
     if (!mutation) return;
 
@@ -725,46 +767,94 @@ export function DragProvider({ children }: { children: ReactNode }) {
     if (at >= 0) next.splice(onto, 0, ...next.splice(at, 1));
     else next.splice(onto, 0, item.id);
 
-    /* Every task whose number this changes, on both sides of the move, so the
-       undo can put the numbering back exactly as it was. */
-    const touched = new Set([...siblingTasks(snapshot.items, item), ...siblings, item.id]);
-    const before = [...touched]
-      .filter((id) => snapshot.items[id])
-      .map((id) => ({ id, child_order: snapshot.items[id].child_order }));
-    const after = next.map((id, index) => ({ id, child_order: index + 1 }));
-
-    const place = (
-      fields: Partial<Item>,
-      orders: Array<{ id: string; child_order: number }>,
-    ) => (snap: typeof snapshot) => {
-      const items = { ...snap.items, [item.id]: { ...snap.items[item.id], ...fields } };
-      for (const { id, child_order } of orders) {
-        if (items[id]) items[id] = { ...items[id], child_order };
-      }
-      return { ...snap, items };
-    };
-
     const move = container.parent_id
       ? moveItem(item.id, { parent_id: container.parent_id })
       : moveItem(item.id, moveArgs({
         project_id: container.project_id, section_id: container.section_id,
       }));
-    await apply(
-      joining ? [move, reorderItems(after)] : [reorderItems(after)],
-      place(joining ? container : {}, after),
-    );
-
-    /* A task put back in line is undone by looking at it, so only a task that
-       also left its section is worth a toast. */
-    if (!joining) return;
     const home = {
       project_id: item.project_id, section_id: item.section_id, parent_id: item.parent_id,
     };
     const back = home.parent_id
       ? moveItem(item.id, { parent_id: home.parent_id })
       : moveItem(item.id, moveArgs({ project_id: home.project_id, section_id: home.section_id }));
+
+    /* Where every sibling carries an `order_key`, the task takes a key between
+       its two new neighbours: one write to the task that moved, and none to
+       the others. Todoist may nudge the key if another client took it, and
+       the corrected one comes back with its answer. */
+    const landed = next.indexOf(item.id);
+    const neighbours = next.filter((id) => id !== item.id);
+    let orderKey: string | null = null;
+    if (next.every((id) => id === item.id || snapshot.items[id]?.order_key)) {
+      try {
+        orderKey = keyBetween(
+          snapshot.items[neighbours[landed - 1]]?.order_key ?? null,
+          snapshot.items[neighbours[landed]]?.order_key ?? null,
+        );
+      } catch {
+        // The screen is not in key order (a sort, a filter): renumber below.
+        orderKey = null;
+      }
+    }
+
+    if (orderKey) {
+      const key = orderKey;
+      const was = item.order_key ?? null;
+      const set = (fields: Partial<Item>) => (snap: typeof snapshot) => ({
+        ...snap,
+        items: { ...snap.items, [item.id]: { ...snap.items[item.id], ...fields } },
+      });
+      await apply(
+        joining ? [move, updateItem(item.id, { order_key: key })] : [updateItem(item.id, { order_key: key })],
+        set({ ...(joining ? container : {}), order_key: key }),
+      );
+      if (!joining) return;
+      toast(whereItLanded(container), () => {
+        void apply(
+          was ? [back, updateItem(item.id, { order_key: was })] : [back],
+          set({ ...home, order_key: was }),
+        );
+      });
+      return;
+    }
+
+    /* Every task whose number this changes, on both sides of the move, so the
+       undo can put the numbering back exactly as it was. */
+    const touched = new Set([...siblingTasks(snapshot.items, item), ...siblings, item.id]);
+    const before = [...touched]
+      .filter((id) => snapshot.items[id])
+      .map((id) => ({
+        id, child_order: snapshot.items[id].child_order, order_key: snapshot.items[id].order_key ?? null,
+      }));
+    /* A fresh run of keys with the numbers, so the list sorts one way on
+       screen until Todoist's own keys come back with its answer. */
+    const keys = keysInOrder(next.length);
+    const after = next.map((id, index) => ({ id, child_order: index + 1, order_key: keys[index] }));
+
+    const place = (
+      fields: Partial<Item>,
+      orders: Array<{ id: string; child_order: number; order_key: string | null }>,
+    ) => (snap: typeof snapshot) => {
+      const items = { ...snap.items, [item.id]: { ...snap.items[item.id], ...fields } };
+      for (const { id, child_order, order_key } of orders) {
+        if (items[id]) items[id] = { ...items[id], child_order, order_key };
+      }
+      return { ...snap, items };
+    };
+    const numbers = (orders: Array<{ id: string; child_order: number }>) =>
+      reorderItems(orders.map(({ id, child_order }) => ({ id, child_order })));
+
+    await apply(
+      joining ? [move, numbers(after)] : [numbers(after)],
+      place(joining ? container : {}, after),
+    );
+
+    /* A task put back in line is undone by looking at it, so only a task that
+       also left its section is worth a toast. */
+    if (!joining) return;
     toast(whereItLanded(container), () => {
-      void apply([back, reorderItems(before)], place(home, before));
+      void apply([back, numbers(before)], place(home, before));
     });
   }
 

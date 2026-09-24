@@ -27,6 +27,7 @@ import {
   type ReviewAction, type ReviewCadence, type ReviewStep,
 } from '@/domain/review';
 import type { TranslationKey } from '@/i18n';
+import { byChildOrder } from '@/domain/orderKey';
 
 /** The destination each action stands for, in the drop table's own terms. */
 const targetFor = (action: ReviewAction): DropTarget => {
@@ -127,7 +128,7 @@ export function ReviewView({ onOpen }: ReviewViewProps) {
   const fileDestinations = useMemo(
     () => Object.values(snapshot.projects)
       .filter((p) => !p.is_archived && !p.is_deleted && !p.is_folder)
-      .sort((a, b) => a.child_order - b.child_order)
+      .sort(byChildOrder)
       .map((p) => ({
         value: p.id,
         label: p.inbox_project ? t('nav.inbox') : p.name,

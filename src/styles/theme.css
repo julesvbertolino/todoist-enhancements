@@ -17,7 +17,20 @@
   border:0;
   border-radius:0;
   box-shadow:none;
+  /* One row, never taller than the window. Left to size itself, the row grew
+     to the sidebar's full height — every project listed — and the app's
+     overflow cut the bottom of every page off by the difference: the last
+     tasks sat under the window's edge, showing only in the trackpad's bounce.
+     The demo already had this, through its banner row, which is why it never
+     showed the bug. */
+  grid-template-rows:minmax(0,1fr);
 }
+/* A grid item's minimum height is its content's unless it is told otherwise. */
+.sidebar,
+.workspace{min-height:0}
+/* The end of a list is the end of the scroll: it does not bounce the window. */
+.screen,
+.side-scroll{overscroll-behavior-y:contain}
 
 /* ---------- Content spans the workspace ---------- */
 .page,
@@ -564,7 +577,7 @@
 }
 .bar{
   flex:1 1 0;min-width:3px;border-radius:4px 4px 0 0;   /* rounded data-end */
-  background:var(--series-1);opacity:.85;
+  background:var(--c-data);opacity:.85;
   transition:opacity .12s ease-out;
 }
 /* The same day of the week before, drawn across the bar. A bar says how much;
@@ -1064,10 +1077,12 @@
   width:12px;height:12px;border-radius:3px;background:var(--c-track);
   box-shadow:inset 0 0 0 1px var(--border);cursor:default;
 }
-.contribution-day.level-1{background:var(--accent-tint);box-shadow:none}
-.contribution-day.level-2{background:var(--accent-soft);box-shadow:none}
-.contribution-day.level-3{background:var(--accent);box-shadow:none}
-.contribution-day.level-4{background:var(--accent-dark);box-shadow:none}
+/* One measured quantity, so one ramp of the data colour rather than the
+   accent: a busy month is not an alert. */
+.contribution-day.level-1{background:color-mix(in srgb, var(--c-data) 28%, var(--surface));box-shadow:none}
+.contribution-day.level-2{background:color-mix(in srgb, var(--c-data) 52%, var(--surface));box-shadow:none}
+.contribution-day.level-3{background:color-mix(in srgb, var(--c-data) 78%, var(--surface));box-shadow:none}
+.contribution-day.level-4{background:var(--c-data);box-shadow:none}
 .contribution-day:focus-visible{outline:2px solid var(--text);outline-offset:2px}
 .chart-summary{margin:0;color:var(--muted);font-size:var(--fs-12);line-height:1.45}
 .metric-card{padding:24px;min-height:132px;display:flex;align-items:center}
@@ -2506,14 +2521,11 @@
 .dashboard-bento .metric-card{position:relative;padding-right:72px}
 .dashboard-bento .metric-icon{
   position:absolute;right:22px;top:20px;width:36px;height:36px;padding:9px;
-  border-radius:12px;background:var(--subtle);color:var(--accent);
+  border-radius:12px;background:var(--subtle);color:var(--muted);
 }
 .dashboard-bento .metric-comparison{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
 .dashboard-bento .metric-card .metric-comparison .compare-delta{
   font-size:var(--fs-12);line-height:1.2;letter-spacing:0;font-weight:700;
-}
-.dashboard-bento .metric-card:first-of-type{
-  background:var(--accent-wash);border-color:var(--accent-tint);
 }
 .dashboard-bento .stat-value{overflow-wrap:anywhere}
 .dashboard-bento .stat-hint{color:var(--muted);margin-top:4px}

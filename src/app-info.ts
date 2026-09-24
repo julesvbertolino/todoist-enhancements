@@ -8,7 +8,7 @@
  * cannot drift apart.
  */
 export const APP_NAME = 'Enhanced for Todoist';
-export const VERSION = '1.12.1';
+export const VERSION = '1.13.0';
 export const AUTHOR = 'julesbertolino';
 export const AUTHOR_AVATAR_URL = 'https://github.com/julesvbertolino.png?size=96';
 

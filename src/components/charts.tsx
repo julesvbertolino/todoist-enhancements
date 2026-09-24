@@ -48,7 +48,7 @@ export interface BarDatum {
   key: string;
   label: string;
   value: number;
-  /** Marks the current period, drawn in the accent colour. */
+  /** The bar that deserves the eye — the best day, the current period — drawn in the accent. */
   current?: boolean;
   /**
    * The same day of the period before, drawn as a dotted line across the bar.

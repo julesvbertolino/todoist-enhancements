@@ -193,16 +193,20 @@ intent.*
 ## How to use it
 
 1. Open **[todoistenhanced.julesbertolino.fr](https://todoistenhanced.julesbertolino.fr)**.
-2. Press **Explore with demo data** to look around a made-up workspace without a
-   token. Nothing is sent anywhere.
-3. To use your own account, copy your API token from [Todoist → Settings →
-   Integrations → Developer](https://app.todoist.com/app/settings/integrations/developer)
-   and paste it into the connect screen.
+2. Press **Explore with demo data** to look around a made-up workspace without
+   an account. Nothing is sent anywhere.
+3. To use your own account, press **Continue with Todoist** and accept on
+   Todoist's page. The app then appears in Todoist → Settings → Integrations,
+   where it can be removed at any time. If you prefer, **Use an API token
+   instead** still takes a token copied from [Todoist → Settings → Integrations
+   → Developer](https://app.todoist.com/app/settings/integrations/developer).
 
 There is no server, no database and no account beyond your Todoist one. The
-browser talks to the Todoist API directly. Your token is stored in your own
-browser and is only ever sent to Todoist. A copy of your workspace, your
-preferences and anything you changed offline sit in IndexedDB on that device.
+browser talks to the Todoist API directly, sign-in included (OAuth with PKCE,
+no client secret). Your access is stored in your own browser and is only ever
+sent to Todoist. A copy of your workspace and anything you changed offline sit
+in IndexedDB on that device; your settings also sit in a comment on your
+Todoist Inbox, so they follow you to another browser.
 
 ## Links
 

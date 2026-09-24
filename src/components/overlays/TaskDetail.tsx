@@ -23,6 +23,7 @@ import { DateField } from '../DateField';
 import { markerStyle } from '@/domain/colors';
 import { displayTaskContent, isUncompletable, toDisplayPriority, toTodoistPriority, type DisplayPriority, type Item } from '@/domain/types';
 import { matchesSearch } from '@/domain/search';
+import { byLabelOrder } from '@/domain/orderKey';
 
 /**
  * The repeat rule, as a rule rather than as a reading of one.
@@ -453,7 +454,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
   const visibleLabels = item.labels.filter((l) => !l.toLowerCase().startsWith('est-'));
   const allTags = Object.values(snapshot.labels)
     .filter((l) => !l.is_deleted && !l.name.startsWith('est-'))
-    .sort((a, b) => a.item_order - b.item_order);
+    .sort(byLabelOrder);
   const filteredTags = allTags.filter((label) => matchesSearch(label.name, tagQuery));
 
   const toggleTag = (name: string) => void updateTask(item.id, {

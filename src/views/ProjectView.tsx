@@ -19,6 +19,7 @@ import { viewPrefs } from '@/store/prefs';
 import { applyFilters, rootItems, sortItems } from '@/store/selectors';
 import { summariseLoad } from '@/domain/load';
 import { readProjectIcon, stripProjectIcon, withProjectIcon } from '@/domain/projectIcons';
+import { bySectionOrder } from '@/domain/orderKey';
 
 interface ProjectViewProps {
   projectId: string;
@@ -133,7 +134,7 @@ function ProjectBody({
     () =>
       Object.values(snapshot.sections)
         .filter((s) => s.project_id === projectId && !s.is_archived && !s.is_deleted)
-        .sort((a, b) => a.section_order - b.section_order),
+        .sort(bySectionOrder),
     [snapshot.sections, projectId],
   );
 

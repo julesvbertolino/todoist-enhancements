@@ -66,6 +66,46 @@ export class NotConnectedError extends Error {
   }
 }
 
+/**
+ * A request that has not answered in this long is treated as a lost network.
+ *
+ * `fetch` has no limit of its own, and a stalled connection — a captive
+ * portal, a laptop waking up, a phone changing networks — can hang for
+ * minutes or for ever. While it hangs no other sync starts, so the app sat on
+ * "syncing" until it was reloaded.
+ */
+export const REQUEST_TIMEOUT_MS = 20_000;
+
+/** Thrown when Todoist did not answer in time. Handled like being offline. */
+export class TimeoutError extends Error {
+  constructor() {
+    super('Todoist did not answer in time.');
+    this.name = 'TimeoutError';
+  }
+}
+
+/** The caller's signal and a deadline, as one signal, on browsers without `AbortSignal.any`. */
+function withDeadline(signal: AbortSignal | undefined, ms: number): {
+  signal: AbortSignal; timedOut: () => boolean; done: () => void;
+} {
+  const controller = new AbortController();
+  let expired = false;
+  const timer = setTimeout(() => { expired = true; controller.abort(); }, ms);
+  const forward = () => controller.abort();
+  if (signal) {
+    if (signal.aborted) controller.abort();
+    else signal.addEventListener('abort', forward, { once: true });
+  }
+  return {
+    signal: controller.signal,
+    timedOut: () => expired,
+    done: () => {
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', forward);
+    },
+  };
+}
+
 interface RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
   /** Sent as a form body, which is what the sync endpoint expects. */
@@ -75,6 +115,8 @@ interface RequestOptions {
   signal?: AbortSignal;
   /** How many times to retry on 429 or a 5xx. */
   retries?: number;
+  /** How long to wait for an answer; the first full sync of a big account needs longer. */
+  timeoutMs?: number;
 }
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
@@ -87,10 +129,13 @@ const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
  * wrong and trying again cannot fix it.
  */
 export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const token = await auth.getToken();
+  let token = await auth.getToken();
   if (!token) throw new NotConnectedError();
+  let renewed = false;
 
-  const { method = 'GET', form, json, query, signal, retries = 3 } = options;
+  const {
+    method = 'GET', form, json, query, signal, retries = 3, timeoutMs = REQUEST_TIMEOUT_MS,
+  } = options;
 
   const url = new URL(`${API_BASE}${path}`);
   if (query) {
@@ -99,7 +144,7 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
     }
   }
 
-  const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
+  const headers: Record<string, string> = {};
   let body: string | undefined;
 
   if (form) {
@@ -112,18 +157,43 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
 
   let attempt = 0;
   for (;;) {
-    const response = await fetch(url, { method, headers, body, signal });
+    /* The deadline covers the whole answer, body included: a response that
+       starts and then stalls is as stuck as one that never starts. */
+    const deadline = withDeadline(signal, timeoutMs);
+    let response: Response;
+    let text: string;
+    try {
+      response = await fetch(url, {
+        method, headers: { ...headers, Authorization: `Bearer ${token}` }, body,
+        signal: deadline.signal,
+      });
+      text = await response.text().catch(() => '');
+    } catch (error) {
+      if (deadline.timedOut()) throw new TimeoutError();
+      throw error;
+    } finally {
+      deadline.done();
+    }
+
+    /* A signed-in access token lasts an hour; one that ran out between the
+       check and the request is renewed once and the request tried again. */
+    if (response.status === 401 && !renewed) {
+      renewed = true;
+      const next = await auth.renewAfterRefusal();
+      if (next) {
+        token = next;
+        continue;
+      }
+    }
 
     if (response.ok) {
       if (response.status === 204) return undefined as T;
-      const text = await response.text();
       return (text ? JSON.parse(text) : undefined) as T;
     }
 
     const retriable = response.status === 429 || response.status >= 500;
     if (!retriable || attempt >= retries) {
       let parsed: unknown;
-      const text = await response.text().catch(() => '');
       try {
         parsed = text ? JSON.parse(text) : undefined;
       } catch {

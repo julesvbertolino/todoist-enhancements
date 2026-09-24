@@ -15,6 +15,7 @@ import {
   parseShorthand, type HighlightKind, type Shorthand, type TextRange,
 } from '@/domain/shorthand';
 import { matchesSearch } from '@/domain/search';
+import { byLabelOrder } from '@/domain/orderKey';
 
 interface ComposerProps {
   open: boolean;
@@ -87,7 +88,7 @@ export function Composer({
 
   const tags = Object.values(snapshot.labels)
     .filter((l) => !l.is_deleted && !l.name.startsWith('est-'))
-    .sort((a, b) => a.item_order - b.item_order);
+    .sort(byLabelOrder);
   const filteredTags = tags.filter((label) => matchesSearch(label.name, tagQuery));
 
   const toggleTag = (name: string) => setLabels((prev) =>

@@ -46,6 +46,8 @@ export interface Item {
   duration: TodoistDuration | null;
   labels: string[];
   child_order: number;
+  /** Fractional-indexing position among siblings; null until Todoist migrates the task. */
+  order_key?: string | null;
   day_order: number;
   collapsed: boolean;
   checked: boolean;
@@ -64,6 +66,8 @@ export interface Project {
   color: string;
   parent_id: string | null;
   child_order: number;
+  /** Fractional-indexing position among siblings; null until migrated, and for workspace projects. */
+  order_key?: string | null;
   is_archived: boolean;
   is_deleted: boolean;
   is_favorite: boolean;
@@ -81,6 +85,8 @@ export interface Section {
   name: string;
   description?: string;
   section_order: number;
+  /** Fractional-indexing position within the project; null until migrated. */
+  order_key?: string | null;
   is_archived: boolean;
   is_deleted: boolean;
   collapsed?: boolean;
@@ -91,6 +97,8 @@ export interface Label {
   name: string;
   color: string;
   item_order: number;
+  /** Fractional-indexing position among labels; null until migrated. */
+  order_key?: string | null;
   is_deleted: boolean;
   is_favorite: boolean;
 }

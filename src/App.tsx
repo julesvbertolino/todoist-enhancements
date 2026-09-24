@@ -80,6 +80,22 @@ export function App() {
   const [placement, setPlacement] = useState<ComposerPlacement>({});
 
   useEffect(() => { void init(); }, [init]);
+
+  /* A task or a project made before Todoist answered is opened under its
+     temporary id. When the answer lands — after reconnecting, most of all —
+     the panel and the address follow it to the real one instead of pointing
+     at something that no longer exists. */
+  const resolvedIds = useStore((s) => s.resolvedIds);
+  useEffect(() => {
+    if (openTaskId && resolvedIds[openTaskId]) setOpenTaskId(resolvedIds[openTaskId]);
+  }, [openTaskId, resolvedIds]);
+  useEffect(() => {
+    const id = route.id && resolvedIds[route.id];
+    const sectionId = route.sectionId && resolvedIds[route.sectionId];
+    if (id || sectionId) {
+      navigate(route.view, id || route.id, { sectionId: sectionId || route.sectionId });
+    }
+  }, [route.view, route.id, route.sectionId, resolvedIds]);
   useEffect(() => {
     if (!tourOpen) return;
     beginTourPreview();

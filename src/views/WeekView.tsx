@@ -208,9 +208,9 @@ function WeekBody({
             reorderable={byHand}
             viewKey={viewKey}
             accent="late"
-            /* Behind schedule takes no drop of its own — nothing is filed as
-               late on purpose — but a task added here is a task for today. */
-            onAddTask={() => onAddTaskTo(placementFor({ kind: 'today' }))}
+            /* Behind schedule takes no drop and no new task of its own:
+               nothing is filed as late on purpose, and a task typed here would
+               leave the group the moment it was saved. */
             actions={
               <button
                 className="btn sm linklike"

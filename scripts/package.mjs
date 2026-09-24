@@ -50,6 +50,10 @@ const manifest = JSON.parse(readFileSync(join(DIST, manifestName), 'utf8'));
 const required = [
   'index.html',
   manifestName,
+  // Sign-in with Todoist fetches this file by URL; without it Todoist refuses the app.
+  'oauth/client.json',
+  // The security headers and the SPA fallback; a dotfile, so easy to lose.
+  '.htaccess',
   ...manifest.icons.map((icon) => icon.src.replace(/^\.?\//, '')),
   ...[...readFileSync(join(DIST, 'index.html'), 'utf8').matchAll(/(?:href|src)="\.\/([^"]+)"/g)]
     .map((m) => m[1])

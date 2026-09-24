@@ -4,6 +4,7 @@ import { toDisplayPriority, type Item } from './types';
 import type {
   EisenhowerPriority, EisenhowerUrgencyRule,
 } from '@/store/prefs';
+import { byChildOrder } from './orderKey';
 
 export type EisenhowerQuadrant =
   | 'urgent-important'
@@ -70,7 +71,7 @@ export function sortEisenhower(items: Item[]): Item[] {
     const bDue = dueDate(b)?.getTime() ?? Number.POSITIVE_INFINITY;
     return aDue - bDue
       || toDisplayPriority(a.priority) - toDisplayPriority(b.priority)
-      || a.child_order - b.child_order
+      || byChildOrder(a, b)
       || a.id.localeCompare(b.id);
   });
 }

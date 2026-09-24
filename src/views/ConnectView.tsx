@@ -3,15 +3,18 @@ import { Icon } from '@/components/Icon';
 import { useT } from '@/hooks/useT';
 import { useStore } from '@/store/store';
 import { looksLikeToken } from '@/api/auth';
+import { beginSignIn } from '@/api/oauth';
 import { AUTHOR, GITHUB_URL, TODOIST_DEVELOPER_URL, VERSION } from '@/app-info';
 
 
 /**
  * The first screen: connecting the account.
  *
- * The token is entered by the user and stays on the device. Nothing is sent
- * anywhere except to Todoist itself, which is why the privacy note sits
- * between the field and the button rather than in a footnote nobody reads.
+ * Signing in with Todoist comes first: one button, Todoist's own consent
+ * page, and back here connected, with nothing to find or copy. A personal
+ * API token still works, one click further down, for anyone who prefers it.
+ * Whatever the way in, the credential stays on the device and goes nowhere
+ * but Todoist, which is why the privacy note sits right under the buttons.
  */
 export function ConnectView() {
   const { t } = useT();
@@ -20,8 +23,13 @@ export function ConnectView() {
   const setLocale = useStore((s) => s.setLocale);
   const locale = useStore((s) => s.prefs.locale);
 
+  const signInError = useStore((s) => s.signInError);
+
   const [token, setToken] = useState('');
   const [status, setStatus] = useState<'idle' | 'checking' | 'invalid' | 'malformed'>('idle');
+  const [leaving, setLeaving] = useState(false);
+  // The token route opens by itself when it is what failed, or what the sign-in fell back to.
+  const [tokenOpen, setTokenOpen] = useState(signInError === 'failed');
 
   async function submit() {
     if (!looksLikeToken(token)) {
@@ -44,20 +52,20 @@ export function ConnectView() {
         </div>
         <p className="connect-intro">{t('connect.intro')}</p>
 
-        <label className="sr" htmlFor="token">{t('connect.tokenLabel')}</label>
-        <input
-          id="token"
-          type="password"
-          autoComplete="off"
-          spellCheck={false}
-          placeholder={t('connect.tokenPlaceholder')}
-          value={token}
-          onChange={(e) => { setToken(e.target.value); setStatus('idle'); }}
-          onKeyDown={(e) => { if (e.key === 'Enter') void submit(); }}
-        />
+        <button
+          className="btn primary lg connect-submit"
+          disabled={leaving}
+          onClick={() => { setLeaving(true); void beginSignIn(); }}
+        >
+          {leaving ? t('connect.oauthLeaving') : t('connect.oauth')}
+        </button>
+        {signInError === 'denied' && <p className="connect-error">{t('connect.oauthDenied')}</p>}
+        {signInError === 'failed' && <p className="connect-error">{t('connect.oauthFailed')}</p>}
 
-        {status === 'invalid' && <p className="connect-error">{t('connect.invalid')}</p>}
-        {status === 'malformed' && <p className="connect-error">{t('connect.malformed')}</p>}
+        <button className="btn tint lg connect-demo" onClick={startDemo}>
+          <Icon name="bars" size="sm" />
+          {t('connect.demoInstead')}
+        </button>
 
         <p className="connect-privacy">
           <strong>{t('connect.privacyLead')}</strong>{' '}
@@ -68,27 +76,45 @@ export function ConnectView() {
           </a>
         </p>
 
-        <button
-          className="btn primary lg connect-submit"
-          disabled={status === 'checking'}
-          onClick={() => void submit()}
+        <details
+          className="connect-token"
+          open={tokenOpen}
+          onToggle={(e) => setTokenOpen((e.currentTarget as HTMLDetailsElement).open)}
         >
-          {status === 'checking' ? t('connect.checking') : t('connect.submit')}
-        </button>
+          <summary>{t('connect.useToken')}</summary>
 
-        <button className="btn tint lg connect-demo" onClick={startDemo}>
-          <Icon name="bars" size="sm" />
-          {t('connect.demoInstead')}
-        </button>
+          <label className="sr" htmlFor="token">{t('connect.tokenLabel')}</label>
+          <input
+            id="token"
+            type="password"
+            autoComplete="off"
+            spellCheck={false}
+            placeholder={t('connect.tokenPlaceholder')}
+            value={token}
+            onChange={(e) => { setToken(e.target.value); setStatus('idle'); }}
+            onKeyDown={(e) => { if (e.key === 'Enter') void submit(); }}
+          />
 
-        <a
-          className="connect-apikey"
-          href={TODOIST_DEVELOPER_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          {t('connect.apiKey')}
-        </a>
+          {status === 'invalid' && <p className="connect-error">{t('connect.invalid')}</p>}
+          {status === 'malformed' && <p className="connect-error">{t('connect.malformed')}</p>}
+
+          <button
+            className="btn lg connect-token-submit"
+            disabled={status === 'checking'}
+            onClick={() => void submit()}
+          >
+            {status === 'checking' ? t('connect.checking') : t('connect.submit')}
+          </button>
+
+          <a
+            className="connect-apikey"
+            href={TODOIST_DEVELOPER_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {t('connect.apiKey')}
+          </a>
+        </details>
 
         <div className="connect-langs">
           {(['en', 'fr'] as const).map((value) => (

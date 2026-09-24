@@ -6,6 +6,87 @@ Every line is marked with what it is: 🆕 something the app did not do before,
 🎨 something it already did, drawn, worded or done differently, 🐛 something
 that was wrong. New first, then changed, then fixed.
 
+## 1.13.0
+
+Sign in with Todoist, settings that follow you without a task in your Inbox,
+a sturdier sync, and undo that really undoes.
+
+🆕 **Continue with Todoist.** Connecting no longer means finding and pasting
+an API token: one button, Todoist's consent page, and back connected. The app
+now appears in Todoist's integrations, where it can be removed. Access renews
+itself every hour without asking again. The token route is still there,
+folded under "Use an API token instead". No server is involved: the app
+identifies itself with a small public file (`oauth/client.json`) and protects
+the round trip with PKCE.
+
+🆕 **Deleting can be undone for real.** A deleted task leaves the screen at
+once, but the deletion is only sent when its toast goes, eight seconds later.
+Undo inside that window gives back the very same task — its link, comments,
+reminders and assignee. Undoing later (⌘Z reaches further back) brings back a
+copy, now with its comments, duration and assignee, and says it is a copy.
+
+🆕 **A selection moves and completes as one.** Dragging one task of a
+selection onto a project, section, day or tag carries the whole selection.
+`E` on a selection completes it in one request, and a single ⌘Z reopens it
+all.
+
+🎨 **Settings live in a comment on your Inbox, not in a task.** They still
+follow your account to every browser — now including the accent, the theme
+and the density, and each project's list or board, grouping, sort, subtasks
+and completed tasks — but no longer count in the Inbox, show in search or get
+in the way of an empty Inbox. The old settings task is moved over and removed
+automatically, and duplicate comments are cleaned up.
+
+🎨 **Order follows Todoist's new `order_key`.** Tasks, sections, projects and
+tags sort by the key Todoist now writes, so an order set in Todoist's own apps
+shows the same here. Moving a task, a section or placing a new project writes
+one key instead of renumbering every neighbour.
+
+🎨 **Insights in a calmer palette.** Charts use a neutral data colour, and
+only the best day and hour take the accent, so a good week no longer looks
+like an alert.
+
+🎨 **One name for the token** on the connect screen: "API token" /
+"jeton d'API", as Todoist calls it. No "Add task" line under Behind schedule,
+where a new task could never stay.
+
+🎨 **Faster Insights.** Completed tasks are fetched three months at a time
+instead of six weeks: a year takes five requests instead of nine.
+
+🎨 **A Content-Security-Policy.** The site now tells the browser to run only
+its own scripts and to talk only to Todoist, plus the usual hardening headers.
+The theme is painted before the first frame by a small file rather than an
+inline script. (Needs the new `.htaccess`.)
+
+🐛 **Long pages scroll to their end.** The app's layout grew to the height of
+the sidebar, and the bottom of every long page — and of the sidebar — was cut
+off, only showing during the trackpad's bounce.
+
+🐛 **Nothing lost offline.** Changes past the hundredth in the offline queue
+were silently dropped; everything is now sent, in order. Tasks, projects and
+sections created offline no longer appear twice after reconnecting, and
+subtasks follow their new parent. A batch Todoist partly refuses keeps what it
+accepted and says how much was saved.
+
+🐛 **Sections can be created again.** Todoist started refusing a section with
+an empty name; a new one is now named "Untitled section", selected for typing
+over.
+
+🐛 **Undo that goes back where things were.** Undoing a bulk move puts tasks
+back in their section and under their parent. A quick ⌘Z after ticking a task
+undoes that task, not whatever came before.
+
+🐛 **No full reload after a recurring task.** Ticking or skipping a recurring
+task used to download the whole account again; the answer to the tick already
+carries the next date.
+
+🐛 **Sync can't get stuck.** A request that never answers is given up after 20
+seconds (a minute for the first full read) and treated as being offline,
+instead of leaving the app on "syncing" until a reload.
+
+🐛 **Phone rows are clean.** The swipe buttons no longer peek out along the
+right of every row in the coloured groups.
+
 ## 1.12.1
 
 A small follow-up to simplify where the cross-device settings marker lives.

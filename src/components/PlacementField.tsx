@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { Select } from './Select';
 import { useT } from '@/hooks/useT';
 import { useStore } from '@/store/store';
+import { byChildOrder, bySectionOrder } from '@/domain/orderKey';
 
 /** Where a task lives: a project, and at most one of its sections. */
 export interface Placement {
@@ -36,12 +37,12 @@ export function PlacementField({ label, ariaLabel, value, onChange }: PlacementF
   const { options, places } = useMemo(() => {
     const live = Object.values(sections)
       .filter((s) => !s.is_deleted && !s.is_archived)
-      .sort((a, b) => a.section_order - b.section_order);
+      .sort(bySectionOrder);
 
     const places = new Map<string, Placement>();
     const options = Object.values(projects)
       .filter((p) => !p.is_deleted && !p.is_archived && !p.is_folder)
-      .sort((a, b) => a.child_order - b.child_order)
+      .sort(byChildOrder)
       .flatMap((project) => {
         const name = project.inbox_project ? t('nav.inbox') : project.name;
         places.set(`project:${project.id}`, { projectId: project.id, sectionId: null });

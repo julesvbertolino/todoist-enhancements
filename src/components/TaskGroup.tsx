@@ -237,7 +237,12 @@ function SectionName({
       size={Math.max(placeholder.length, draft.length + 1)}
       onChange={(e) => setDraft(e.target.value)}
       onClick={(e) => e.stopPropagation()}
-      onBlur={() => { if (draft.trim() !== value) onRename(draft.trim()); }}
+      /* An emptied name is put back rather than sent: Todoist refuses a
+         section with no name. */
+      onBlur={() => {
+        if (!draft.trim()) setDraft(value);
+        else if (draft.trim() !== value) onRename(draft.trim());
+      }}
       onKeyDown={(e) => {
         e.stopPropagation();
         if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur(); }

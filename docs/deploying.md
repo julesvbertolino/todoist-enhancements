@@ -16,7 +16,15 @@ Two things to check after an upload:
 ```bash
 curl -o /dev/null -w '%{http_code}\n' https://<host>/icon-192.png   # 200
 curl -o /dev/null -w '%{content_type}\n' https://<host>/manifest.webmanifest
+curl -s https://<host>/oauth/client.json | head -c 40                     # {"client_id"…
+curl -sI https://<host>/ | grep -i content-security-policy
 ```
 
 The second should say `application/manifest+json`. It comes from `.htaccess`,
 which ships in `dist/` — a dotfile, so a client set to hide them will skip it.
+
+The third is what "Continue with Todoist" depends on: Todoist fetches that
+file to identify the app. If it answers with the app's own page instead, the
+`oauth/` folder was not uploaded and Todoist replies `invalid_client`. The
+fourth checks that `.htaccess` is in place; without it the app still works,
+without its Content-Security-Policy.

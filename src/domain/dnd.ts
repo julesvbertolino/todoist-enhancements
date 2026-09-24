@@ -1,6 +1,7 @@
 import { SYSTEM_LABELS, weekLabel, type Item } from './types';
 import { toApiDate } from './dates';
 import { dueForDate } from './recurrence';
+import { byChildOrder } from './orderKey';
 
 /**
  * What a drop means.
@@ -198,7 +199,7 @@ export function siblingTasks(items: Record<string, Item>, of: Item): string[] {
       && other.project_id === of.project_id
       && (other.section_id ?? null) === (of.section_id ?? null)
       && (other.parent_id ?? null) === (of.parent_id ?? null))
-    .sort((a, b) => a.child_order - b.child_order)
+    .sort(byChildOrder)
     .map((other) => other.id);
 }
 

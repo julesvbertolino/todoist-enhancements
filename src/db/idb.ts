@@ -109,6 +109,30 @@ export async function readQueue(): Promise<QueuedCommand[]> {
   }
 }
 
+/**
+ * Rewrites queued commands in place, keeping their place in the queue.
+ *
+ * Used when part of the queue went out and resolved ids that the rest names:
+ * the rest is written back with the real ids, in the order it was queued.
+ */
+export async function updateQueued(commands: Command[]): Promise<void> {
+  try {
+    const database = await db();
+    const tx = database.transaction(STORE_QUEUE, 'readwrite');
+    for (const cmd of commands) {
+      const existing = (await tx.store.get(cmd.uuid)) as QueuedCommand | undefined;
+      await tx.store.put({
+        ...cmd,
+        queuedAt: existing?.queuedAt ?? Date.now(),
+        attempts: (existing?.attempts ?? 0) + 1,
+      } satisfies QueuedCommand);
+    }
+    await tx.done;
+  } catch {
+    /* the commands are still queued under their old arguments, which Todoist can resolve */
+  }
+}
+
 export async function dequeue(uuids: string[]): Promise<void> {
   try {
     const database = await db();

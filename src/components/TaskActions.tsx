@@ -24,6 +24,7 @@ import { markerStyle } from '@/domain/colors';
 import { dropMutation, moveArgs, type DropTarget } from '@/domain/dnd';
 import { updateItem, moveItem } from '@/api/commands';
 import type { Item, Snapshot } from '@/domain/types';
+import { byChildOrder, bySectionOrder } from '@/domain/orderKey';
 
 /** "Tuesday", for a date whose number is already on the line beside it. */
 const weekdayName = (date: Date, locale: 'en' | 'fr'): string =>
@@ -216,7 +217,7 @@ export function TaskActions({ item, childrenOf, onOpen }: TaskActionsProps) {
   const projects = useMemo(
     () => Object.values(snapshot.projects)
       .filter((p) => !p.is_deleted && !p.is_archived && !p.is_folder)
-      .sort((a, b) => a.child_order - b.child_order),
+      .sort(byChildOrder),
     [snapshot.projects],
   );
 
@@ -230,7 +231,7 @@ export function TaskActions({ item, childrenOf, onOpen }: TaskActionsProps) {
   const destinations = useMemo<Destination[]>(() => {
     const sections = Object.values(snapshot.sections)
       .filter((s) => !s.is_deleted && !s.is_archived)
-      .sort((a, b) => a.section_order - b.section_order);
+      .sort(bySectionOrder);
 
     return projects.flatMap((project) => [
       {

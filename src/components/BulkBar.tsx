@@ -8,6 +8,7 @@ import { markerStyle } from '@/domain/colors';
 import { toDisplayPriority, toTodoistPriority, type DisplayPriority } from '@/domain/types';
 import type { DropTarget } from '@/domain/dnd';
 import { matchesSearch } from '@/domain/search';
+import { byChildOrder, byLabelOrder, bySectionOrder } from '@/domain/orderKey';
 
 /**
  * One button in the bar, and the panel it opens.
@@ -125,10 +126,10 @@ export function BulkBar() {
 
   const projects = Object.values(snapshot.projects)
     .filter((p) => !p.is_archived && !p.is_deleted && !p.is_folder)
-    .sort((a, b) => a.child_order - b.child_order);
+    .sort(byChildOrder);
   const sections = Object.values(snapshot.sections)
     .filter((section) => !section.is_archived && !section.is_deleted)
-    .sort((a, b) => a.section_order - b.section_order);
+    .sort(bySectionOrder);
   const destinations = projects.flatMap((project) => {
     const projectName = project.inbox_project ? t('nav.inbox') : project.name;
     return [
@@ -165,7 +166,7 @@ export function BulkBar() {
      field of their own everywhere else in the app. */
   const tags = Object.values(snapshot.labels)
     .filter((l) => !l.is_deleted && !l.name.startsWith('est-'))
-    .sort((a, b) => a.item_order - b.item_order);
+    .sort(byLabelOrder);
   const filteredTags = tags.filter((label) => matchesSearch(label.name, tagQuery));
 
   /** How many of the selected tasks carry this tag: none, some, or all. */

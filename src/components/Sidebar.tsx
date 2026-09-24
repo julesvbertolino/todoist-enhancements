@@ -22,6 +22,7 @@ import { ProjectMenu } from './ProjectMenu';
 import { DraggableTag } from './dnd/DraggableTag';
 import { dragClock } from './dnd/DragProvider';
 import type { ProjectSheetTarget } from './overlays/ProjectSheet';
+import { byChildOrder, byLabelOrder } from '@/domain/orderKey';
 
 interface SidebarProps {
   route: Route;
@@ -133,10 +134,10 @@ export function Sidebar({
   const favourites = useMemo(() => {
     const labels = Object.values(snapshot.labels)
       .filter((l) => l.is_favorite && !l.name.startsWith('est-'))
-      .sort((a, b) => a.item_order - b.item_order);
+      .sort(byLabelOrder);
     const projects = Object.values(snapshot.projects)
       .filter((p) => p.is_favorite && !p.is_archived && !p.is_deleted)
-      .sort((a, b) => a.child_order - b.child_order);
+      .sort(byChildOrder);
     return { labels, projects };
   }, [snapshot.labels, snapshot.projects]);
 
